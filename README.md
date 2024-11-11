@@ -19,7 +19,7 @@ By running:
 `./bin/jordan.R -h`  
 will display `jordan` options. To run, `jordan` requires:  
 - genotype data (PLINK or VCF format)  
-- snplist (list of SNPs to use for the PRS, including CHROM, POS, EFFECT_ALLELE, BETA (or OR)  
+- snplist (list of SNPs to use for the PRS, including CHROM, POS, EFFECT_ALLELE, OTHER_ALLELE, and BETA (or OR)  
 - outname (the name of the output folder)  
 - isdosage: binary flag whether data is genotyped or imputed (TRUE/FALSE)  
 - plot: binary flag to plot densities of not (TRUE/FALSE)  
