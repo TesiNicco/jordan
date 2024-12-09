@@ -35,7 +35,7 @@
     }
 
     # Function to check input genotype file
-    checkGenoFile = function(genotype_file, outdir, isdosage){
+    checkGenoFile = function(genotype_file, outdir, isdosage, multiple){
         # check if file is a vcf/bcf
         if (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz')){
             # vcf file
@@ -52,10 +52,21 @@
         } else if (file.exists(paste0(genotype_file, '.pvar'))){
             cat('** PLINK2 file found.\n')
             run = TRUE
+            # check other chromosomes if present
+            if (multiple != FALSE){
+                file_path = ''
+                all_files = system(paste0('ls ', dirname(genotype_file), '/*pvar'), intern=TRUE)
+                genotype_file = all_files
+            }
             res = list(run, genotype_file, 'plink2')
         } else if (file.exists(paste0(genotype_file, '.bim'))){
             cat('** PLINK file found.\n')
             run = TRUE
+            if (multiple != FALSE){
+                file_path = ''
+                all_files = system(paste0('ls ', dirname(genotype_file), '/*bim'), intern=TRUE)
+                genotype_file = all_files
+            }
             res = list(run, genotype_file, 'plink')
         } else {
             cat('** Unknown genotype file provided. \n')
@@ -120,9 +131,13 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple){
         # match ids in the plink file and extract dosages/genotypes
-        res = matchIDs(genotype_path, snps_data, genotype_type, outdir)
+        if (multiple == FALSE){
+            res = matchIDs(genotype_path, snps_data, genotype_type, outdir)
+        } else {
+            res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir)
+        }
         dosages = res[[1]]
         mappingSnp = res[[2]]
         # snps info flip to risk allele
@@ -183,15 +198,90 @@
         return(res)
     }
 
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir){
+        # container for all dosages and matching snps
+        matchingsnps_all = data.frame()
+        all_dos = data.frame()
+        # iterate over all files
+        for (f in genotype_path){
+            # read bim/pvar file
+            if (genotype_type == 'plink'){
+                snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
+                colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
+            } else {
+                snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
+                colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
+            }
+            # first rough filter on the position
+            snpsinfo = snpsinfo[which(snpsinfo$pos %in% snps_data$POS),]
+            # create identifier with chrom:pos
+            snpsinfo$unique_id = paste(snpsinfo$chr, snpsinfo$pos, sep=":")
+            # check which snps of interest are in there
+            snps_data$id = paste(snps_data$CHROM, snps_data$POS, sep=":")
+            # first match snps based on their chromosome:position
+            matchingsnps_lv1 = snpsinfo[which(snpsinfo$unique_id %in% snps_data$id),]
+            # then match snps based on their alleles
+            matchingsnps_lv1$allele_match = NA
+            for (i in 1:nrow(matchingsnps_lv1)){
+                # get variant info from data
+                tmp_info = as.character(matchingsnps_lv1[i, c('ref', 'alt')])
+                tmp_info = tmp_info[order(tmp_info)]
+                # get original snp info
+                ori_info = as.character(snps_data[which(snps_data$id == matchingsnps_lv1$unique_id[i]), c('EFFECT_ALLELE', 'OTHER_ALLELE')])
+                ori_info = ori_info[order(ori_info)]
+                # check if they are the same
+                if (identical(tmp_info, ori_info)){
+                    # then ok
+                    matchingsnps_lv1$allele_match[i] = 'yes'
+                }
+            }
+            # filter out snps where the allele doesn't match
+            matchingsnps = matchingsnps_lv1[which(matchingsnps_lv1$allele_match == 'yes'),]
+            if (nrow(matchingsnps) >0){
+                # write this output
+                if (genotype_type == 'plink'){
+                    write.table(matchingsnps[, c('chr', 'id', 'na', 'pos', 'ref', 'alt')], paste0(outdir, '/snpsInterest.txt'), quote=F, row.names=F, col.names=F, sep="\t")
+                } else {
+                    write.table(matchingsnps[, c('chr', 'pos', 'id', 'ref', 'alt')], paste0(outdir, '/snpsInterest.txt'), quote=F, row.names=F, col.names=c('#CHROM', 'POS', 'ID', 'REF', 'ALT'), sep="\t")
+                }
+                # extract these snps
+                if (genotype_type == 'plink'){
+                    system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                } else {
+                    system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                }
+                # read dosages
+                dos = data.table::fread(paste0(outdir, '/dosages.raw'), h=T, stringsAsFactors=F)
+                dos$FID = NULL
+                dos$PAT = NULL
+                dos$MAT = NULL
+                dos$SEX = NULL
+                dos$PHENOTYPE = NULL
+                # add to all dosages
+                if (nrow(all_dos) == 0){
+                    all_dos = dos
+                } else {
+                    all_dos = merge(all_dos, dos, by = 'IID') 
+                }
+                matchingsnps_all = rbind(matchingsnps_all, matchingsnps)
+                # remove temporary files
+                system(paste0('rm ', outdir, '/snpsInterest.txt'))
+                system(paste0('rm ', outdir, '/dosages.raw'))
+            }
+        }
+        res = list(all_dos, matchingsnps_all)
+        return(res)
+    }
+
     # Function to match risk alleles
     prs = function(snps_data, dosages, mappingSnp){
         prs_df = data.frame(iid = dosages$IID, PRS = 0)
         included_snps = data.frame()
         dosages = data.frame(dosages, check.names=F)
         # iterate over dosages columns
-        for (i in seq(7, ncol(dosages))){
+        for (i in seq(2, ncol(dosages))){
             # extract data
-            temp = dosages[, c(1, 2, 3, 4, 5, 6, i)]
+            temp = dosages[, c(1, i)]
             # check alleles
             temp_name = stringr::str_split_fixed(colnames(dosages)[i], '_', 2)[, 1]
             temp_alleles = stringr::str_split_fixed(colnames(dosages)[i], '_', 2)[, 2]
@@ -204,9 +294,9 @@
             if (temp_effect %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE) & temp_other %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE)){
                 # flip to risk
                 if (temp_snpdata$risk_allele == temp_effect){
-                    temp$score = temp[, 7] * temp_snpdata$risk_beta
+                    temp$score = temp[, 2] * temp_snpdata$risk_beta
                 } else {
-                    temp$score = (2 - temp[, 7]) * temp_snpdata$risk_beta
+                    temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta
                 }
                 # add to main df
                 prs_df$PRS = prs_df$PRS + temp$score
@@ -239,11 +329,12 @@
 # Parse arguments
     # Add required arguments
         parser <- ArgumentParser(description = "makePRS: a script to make PRS in R")
-        parser$add_argument("--genotype", help = "Path to the genotype file. If PLINK, do not provide file extension. If VCF, please provide the file extension.")
+        parser$add_argument("--genotype", help = "Path to the genotype file. If PLINK, do not provide file extension. If VCF, please provide the file extension. If multiple PLINK files should be used, input the path of the first file. All PLINK files in the directory where the input files are will be used.")
         parser$add_argument("--snplist", help = "Path to the SNPs file. This file will define the SNPs to include in the PRS and the relative weights. By default, required column names are CHROM, POS, EFFECT_ALLELE, OTHER_ALLELE and BETA, (or OR)")
         parser$add_argument("--outname", help = "Path to output PRS file. A new directory can be specified. In that case, the directory will be created and the file with be written to the new directory.")
         parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default=FALSE)
         parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default=FALSE)
+        parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default=FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -251,8 +342,10 @@
         outfile <- args$outname
         isdosage <- args$isdosage
         plt <- args$plot
+        multiple = args$multiple
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
+        cat("\nMultiple files: ", multiple)
         cat("\nSNPs file: ", snps_file)
         cat("\nOutput file: ", outfile)
         cat("\nDosage: ", isdosage)
@@ -264,7 +357,7 @@
         run1 = res[[1]]
         outdir = res[[2]]
     # Check input genotype file
-        res = checkGenoFile(genotype_file, outdir, isdosage)
+        res = checkGenoFile(genotype_file, outdir, isdosage, multiple)
         run2 = res[[1]]
         genotype_path = res[[2]]
         genotype_type = res[[3]]
@@ -277,7 +370,7 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type)
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple)
             prs_df = res[[1]]
             included_snps = res[[2]]
             # write prs output
