@@ -131,7 +131,7 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE){
         # match ids in the plink file and extract dosages/genotypes
         if (multiple == FALSE){
             res = matchIDs(genotype_path, snps_data, genotype_type, outdir)
@@ -146,7 +146,14 @@
         snps_data$risk_allele[which(snps_data$BETA <0)] = snps_data$OTHER_ALLELE[which(snps_data$BETA <0)]
         # then do the prs
         res = prs(snps_data, dosages, mappingSnp)
-        return(res)
+        # if requested, do without apoe as well
+        if (excludeAPOE != FALSE){
+            snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
+            res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp)
+            return(list(res, res_noapoe))
+        } else {
+            return(res)
+        }
     }
 
     # Function to match snp IDs and extract genotypes
@@ -202,42 +209,48 @@
         # container for all dosages and matching snps
         matchingsnps_all = data.frame()
         all_dos = data.frame()
+        # write positions of interest
+        write.table(snps_data$POS, paste0(outdir, '/tmp_positions.txt'), quote=F, row.names=F, col.names=F)
         # iterate over all files
         for (f in genotype_path){
-            # read bim/pvar file
-            if (genotype_type == 'plink'){
-                snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
-                colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
-            } else {
-                snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
-                colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
-            }
-            # first rough filter on the position
-            snpsinfo = snpsinfo[which(snpsinfo$pos %in% snps_data$POS),]
-            # create identifier with chrom:pos
-            snpsinfo$unique_id = paste(snpsinfo$chr, snpsinfo$pos, sep=":")
-            # check which snps of interest are in there
-            snps_data$id = paste(snps_data$CHROM, snps_data$POS, sep=":")
-            # first match snps based on their chromosome:position
-            matchingsnps_lv1 = snpsinfo[which(snpsinfo$unique_id %in% snps_data$id),]
-            # then match snps based on their alleles
-            matchingsnps_lv1$allele_match = NA
-            for (i in 1:nrow(matchingsnps_lv1)){
-                # get variant info from data
-                tmp_info = as.character(matchingsnps_lv1[i, c('ref', 'alt')])
-                tmp_info = tmp_info[order(tmp_info)]
-                # get original snp info
-                ori_info = as.character(snps_data[which(snps_data$id == matchingsnps_lv1$unique_id[i]), c('EFFECT_ALLELE', 'OTHER_ALLELE')])
-                ori_info = ori_info[order(ori_info)]
-                # check if they are the same
-                if (identical(tmp_info, ori_info)){
-                    # then ok
-                    matchingsnps_lv1$allele_match[i] = 'yes'
+            tryCatch({
+                # read bim/pvar file
+                if (genotype_type == 'plink'){
+                    #snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
+                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
+                    colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
+                } else {
+                    #snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
+                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
+                    colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
                 }
-            }
-            # filter out snps where the allele doesn't match
-            matchingsnps = matchingsnps_lv1[which(matchingsnps_lv1$allele_match == 'yes'),]
-            if (nrow(matchingsnps) >0){
+                # first rough filter on the position
+                snpsinfo = snpsinfo[which(snpsinfo$pos %in% snps_data$POS),]
+                # create identifier with chrom:pos
+                snpsinfo$unique_id = paste(snpsinfo$chr, snpsinfo$pos, sep=":")
+                # check which snps of interest are in there
+                snps_data$id = paste(snps_data$CHROM, snps_data$POS, sep=":")
+                # first match snps based on their chromosome:position
+                matchingsnps_lv1 = snpsinfo[which(snpsinfo$unique_id %in% snps_data$id),]
+                # then match snps based on their alleles
+                matchingsnps_lv1$allele_match = NA
+                for (i in 1:nrow(matchingsnps_lv1)){
+                    # get variant info from data
+                    tmp_info = as.character(matchingsnps_lv1[i, c('ref', 'alt')])
+                    tmp_info = tmp_info[order(tmp_info)]
+                    # get original snp info
+                    ori_info = as.character(snps_data[which(snps_data$id == matchingsnps_lv1$unique_id[i]), c('EFFECT_ALLELE', 'OTHER_ALLELE')])
+                    ori_info = ori_info[order(ori_info)]
+                    # check if they are the same
+                    if (identical(tmp_info, ori_info)){
+                        # then ok
+                        matchingsnps_lv1$allele_match[i] = 'yes'
+                    }
+                }
+                # filter out snps where the allele doesn't match
+                matchingsnps = matchingsnps_lv1[which(matchingsnps_lv1$allele_match == 'yes'),]
                 # write this output
                 if (genotype_type == 'plink'){
                     write.table(matchingsnps[, c('chr', 'id', 'na', 'pos', 'ref', 'alt')], paste0(outdir, '/snpsInterest.txt'), quote=F, row.names=F, col.names=F, sep="\t")
@@ -267,7 +280,10 @@
                 # remove temporary files
                 system(paste0('rm ', outdir, '/snpsInterest.txt'))
                 system(paste0('rm ', outdir, '/dosages.raw'))
-            }
+            },
+            error = function(e){
+                cat(paste0('*** An error occurred. Skipping file ', f, '\n'))
+            })
         }
         res = list(all_dos, matchingsnps_all)
         return(res)
@@ -290,21 +306,24 @@
             # get the info from the snpdata
             temp_snpinfo = mappingSnp[which(mappingSnp$id == temp_name),]
             temp_snpdata = snps_data[which(snps_data$CHROM == temp_snpinfo$chr & snps_data$POS == temp_snpinfo$pos),]
-            # check if the alleles are ok
-            if (temp_effect %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE) & temp_other %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE)){
-                # flip to risk
-                if (temp_snpdata$risk_allele == temp_effect){
-                    temp$score = temp[, 2] * temp_snpdata$risk_beta
+            # check if there are lines
+            if (nrow(temp_snpdata) >0){
+                # check if the alleles are ok
+                if (temp_effect %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE) & temp_other %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE)){
+                    # flip to risk
+                    if (temp_snpdata$risk_allele == temp_effect){
+                        temp$score = temp[, 2] * temp_snpdata$risk_beta
+                    } else {
+                        temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta
+                    }
+                    # add to main df
+                    prs_df$PRS = prs_df$PRS + temp$score
+                    # also save the included snps
+                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Included', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
                 } else {
-                    temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta
+                    cat('** Alleles do not match for snp ', temp_name, '. Skipping.\n')
+                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Excluded', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
                 }
-                # add to main df
-                prs_df$PRS = prs_df$PRS + temp$score
-                # also save the included snps
-                included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Included', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
-            } else {
-                cat('** Alleles do not match for snp ', temp_name, '. Skipping.\n')
-                included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Excluded', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
             }
         }
         res = list(prs_df, included_snps)
@@ -335,6 +354,7 @@
         parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default=FALSE)
         parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default=FALSE)
         parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default=FALSE)
+        parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default=FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -343,12 +363,14 @@
         isdosage <- args$isdosage
         plt <- args$plot
         multiple = args$multiple
+        excludeAPOE = args$exclude
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
         cat("\nSNPs file: ", snps_file)
         cat("\nOutput file: ", outfile)
         cat("\nDosage: ", isdosage)
+        cat("\nWith and Without APOE: ", isdosage)
         cat("\nPlot: ", plt, '\n\n')
 
 # Check inputs
@@ -370,20 +392,44 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple)
-            prs_df = res[[1]]
-            included_snps = res[[2]]
-            # write prs output
-            write.table(prs_df, paste0(outdir, '/PRS_table.txt'), quote=F, row.names=F, sep="\t")
-            # fill included snps file with those that are excluded as well
-            #included_snps$POS = stringr::str_split_fixed(included_snps$SNP, ':', 4)[, 2]
-            #included_snps$CHROM = stringr::str_replace_all(stringr::str_split_fixed(included_snps$SNP, ':', 4)[, 1], 'chr', '')
-            included_snps$ID = paste(included_snps$CHROM, included_snps$POS, sep=":")
-            snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
-            missing = snps_data[which(!(snps_data$ID %in% included_snps$ID)),]
-            if (nrow(missing) >0){ included_snps = rbind(included_snps, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
-            # write these outputs
-            write.table(included_snps, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE)
+            if (excludeAPOE != FALSE){
+                res_apoe = res[[1]]
+                res_noapoe = res[[2]]
+                prs_df_apoe = res_apoe[[1]]
+                included_snps_apoe = res_apoe[[2]]
+                prs_df_noapoe = res_noapoe[[1]]
+                included_snps_noapoe = res_noapoe[[2]]
+                # write prs output
+                write.table(prs_df_apoe, paste0(outdir, '/PRS_table.txt'), quote=F, row.names=F, sep="\t")
+                write.table(prs_df_noapoe, paste0(outdir, '/PRS_table_noAPOE.txt'), quote=F, row.names=F, sep="\t")
+                # fill included snps file with those that are excluded as well
+                included_snps_apoe$ID = paste(included_snps_apoe$CHROM, included_snps_apoe$POS, sep=":")
+                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
+                missing = snps_data[which(!(snps_data$ID %in% included_snps_apoe$ID)),]
+                if (nrow(missing) >0){ included_snps_apoe = rbind(included_snps_apoe, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
+                # write these outputs
+                write.table(included_snps_apoe, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
+                # same for set without APOE
+                included_snps_noapoe$ID = paste(included_snps_noapoe$CHROM, included_snps_noapoe$POS, sep=":")
+                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
+                missing = snps_data[which(!(snps_data$ID %in% included_snps_noapoe$ID)),]
+                if (nrow(missing) >0){ included_snps_noapoe = rbind(included_snps_noapoe, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
+                # write these outputs
+                write.table(included_snps_noapoe, paste0(outdir, '/SNPs_included_PRS_noAPOE.txt'), quote=F, row.names=F, sep="\t")
+            } else {
+                prs_df = res[[1]]
+                included_snps = res[[2]]
+                # write prs output
+                write.table(prs_df, paste0(outdir, '/PRS_table.txt'), quote=F, row.names=F, sep="\t")
+                # fill included snps file with those that are excluded as well
+                included_snps$ID = paste(included_snps$CHROM, included_snps$POS, sep=":")
+                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
+                missing = snps_data[which(!(snps_data$ID %in% included_snps$ID)),]
+                if (nrow(missing) >0){ included_snps = rbind(included_snps, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
+                # write these outputs
+                write.table(included_snps, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
+            }
             # clean temporary data
             system(paste0('rm ', outdir, '/tmp*'))
             system(paste0('rm ', outdir, '/dosage*'))
