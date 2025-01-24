@@ -131,19 +131,13 @@
     }
 
     # Function to guide PRS
-<<<<<<< HEAD
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, maf){
-        # match ids in the plink file and extract dosages/genotypes
-        res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
-=======
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf){
         # match ids in the plink file and extract dosages/genotypes
         if (multiple == FALSE){
-            res = matchIDs(genotype_path, snps_data, genotype_type, outdir)
+            res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
         } else {
-            res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir)
+            res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf)
         }
->>>>>>> abfca055be5ebb65b72aa1567485d3a4019c82eb
         dosages = res[[1]]
         mappingSnp = res[[2]]
         # snps info flip to risk allele
@@ -273,9 +267,17 @@
                 }
                 # extract these snps
                 if (genotype_type == 'plink'){
-                    system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                    if (maf != FALSE){
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                    } else {
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                    }
                 } else {
-                    system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                    if (maf != FALSE){
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                    } else {
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                    }
                 }
                 # read dosages
                 dos = data.table::fread(paste0(outdir, '/dosages.raw'), h=T, stringsAsFactors=F)
@@ -367,12 +369,9 @@
         parser$add_argument("--outname", help = "Path to output PRS file. A new directory can be specified. In that case, the directory will be created and the file with be written to the new directory.")
         parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default=FALSE)
         parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default=FALSE)
-<<<<<<< HEAD
-        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS.", default = FALSE)
-=======
         parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default=FALSE)
         parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default=FALSE)
->>>>>>> abfca055be5ebb65b72aa1567485d3a4019c82eb
+        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS.", default = FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -380,23 +379,17 @@
         outfile <- args$outname
         isdosage <- args$isdosage
         plt <- args$plot
-<<<<<<< HEAD
-        mad <- args$maf
-=======
+        maf <- args$maf
         multiple = args$multiple
         excludeAPOE = args$exclude
->>>>>>> abfca055be5ebb65b72aa1567485d3a4019c82eb
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
         cat("\nSNPs file: ", snps_file)
         cat("\nOutput file: ", outfile)
         cat("\nDosage: ", isdosage)
-<<<<<<< HEAD
         cat("\nMAF: ", maf)
-=======
         cat("\nWith and Without APOE: ", isdosage)
->>>>>>> abfca055be5ebb65b72aa1567485d3a4019c82eb
         cat("\nPlot: ", plt, '\n\n')
 # Check inputs
     # Check output directory
@@ -412,8 +405,21 @@
         res = checkInputSNPs(snps_file)
         run3 = res[[1]]
         snps_data = res[[2]]
+    # Check maf
+        if (maf != FALSE){
+            tryCatch({
+                maf = as.numeric(maf)
+                run4 = TRUE
+            }, error = function(e) {
+                print(paste("** The MAF value is not numeric. It should be, for example, 0.01 for MAF=1%.\n", conditionMessage(e)))
+                run4 = FALSE
+            })  
+        } else {
+            maf = FALSE
+            run = TRUE
+        }
     # Check before running
-        if (run1 == FALSE | run2 == FALSE | run3 == FALSE){
+        if (run1 == FALSE | run2 == FALSE | run3 == FALSE | run4 == FALSE){
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
