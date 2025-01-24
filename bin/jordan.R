@@ -364,14 +364,14 @@
 # Parse arguments
     # Add required arguments
         parser <- ArgumentParser(description = "makePRS: a script to make PRS in R")
-        parser$add_argument("--genotype", help = "Path to the genotype file. If PLINK, do not provide file extension. If VCF, please provide the file extension. If multiple PLINK files should be used, input the path of the first file. All PLINK files in the directory where the input files are will be used.")
+        parser$add_argument("--genotype", help = "Path to the genotype file. If PLINK, do NOT provide file extension. If VCF, please provide the file extension. If multiple PLINK files should be used, input the path of the first file, and all PLINK files in the directory where the input files are will be used.")
         parser$add_argument("--snplist", help = "Path to the SNPs file. This file will define the SNPs to include in the PRS and the relative weights. By default, required column names are CHROM, POS, EFFECT_ALLELE, OTHER_ALLELE and BETA, (or OR)")
         parser$add_argument("--outname", help = "Path to output PRS file. A new directory can be specified. In that case, the directory will be created and the file with be written to the new directory.")
         parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default=FALSE)
         parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default=FALSE)
         parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default=FALSE)
         parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default=FALSE)
-        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS.", default = FALSE)
+        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS. Eg: 0.01 for MAF>1%.", default = FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype

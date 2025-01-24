@@ -23,6 +23,17 @@ will display `jordan` options. To run, `jordan` requires:
 - outname (the name of the output folder)  
 - isdosage: binary flag whether data is genotyped or imputed (TRUE/FALSE)  
 - plot: binary flag to plot densities of not (TRUE/FALSE)  
+- multiple: whether multiple input (PLINK) files should be used  
+- exclude: whether PRS including and excluding APOE variants (e2 and e4 alleles) should be made  
+- maf: minor allele frequency (MAF) threshold to include variants in the PRS. It should be, for example, 0.01 for MAF>1%  
+
+## Example usage
+Assuming a single PLINK file storing genotype data as dosages, no plots, PRS with and without APOE variants, with MAF>5%:  
+`Rscript ./bin/jordan.R --genotype genotype/example_data_plink --snplist Snps_interest.txt --outname test_output --isdosage TRUE --exclude TRUE --maf 0.05`  
+Assuming multiple PLINK files with genotype data as dosages, no plots, PRS with and without APOE variants, with MAF>5%:  
+`Rscript ./bin/jordan.R --genotype genotype_data_path/chr1.example_data_plink --snplist Snps_interest.txt --outname test_output --isdosage TRUE --exclude TRUE --multiple TRUE --maf 0.05`  
+Assuming a single VCF file with genotype data as dosages, no plots, PRS with and without APOE variants, with MAF>5%:  
+`Rscript ./bin/jordan.R --genotype genotype_data_path/example_data.vcf --snplist Snps_interest.txt --outname test_output --isdosage TRUE --exclude TRUE --maf 0.05`  
 
 ## Test
 To test everything is allright, you can use the following script alongside the example datasets provided in the repository. The example data will make a PRS from 85 SNPs associated with Alzheimer's Disease in individuals from the 1000Genome Project:  
