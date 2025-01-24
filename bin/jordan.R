@@ -213,7 +213,7 @@
         return(res)
     }
 
-    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir){
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf){
         # container for all dosages and matching snps
         matchingsnps_all = data.frame()
         all_dos = data.frame()
@@ -423,7 +423,7 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE)
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf)
             if (excludeAPOE != FALSE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
