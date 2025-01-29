@@ -416,7 +416,7 @@
             })  
         } else {
             maf = FALSE
-            run = TRUE
+            run4 = TRUE
         }
     # Check before running
         if (run1 == FALSE | run2 == FALSE | run3 == FALSE | run4 == FALSE){
