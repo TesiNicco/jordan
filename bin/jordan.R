@@ -131,7 +131,7 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos){
         # match ids in the plink file and extract dosages/genotypes
         if (multiple == FALSE){
             res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
@@ -140,6 +140,10 @@
         }
         dosages = res[[1]]
         mappingSnp = res[[2]]
+	# if dosages need to be outputted, write them now
+	if (keepDos == TRUE){
+		write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
+	}
         # snps info flip to risk allele if this was requested
         snps_data$risk_allele = snps_data$EFFECT_ALLELE
 	if (fliprisk == TRUE){
@@ -377,6 +381,7 @@
         parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default = FALSE)
         parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS. Eg: 0.01 for MAF>1%%.", default = FALSE)
 	parser$add_argument("--risk", help="Calculate PRS wrt the risk allele, i.e., always flip BETA or OR to risk (BETA>0, OR>1) and adjust the alleles accordingly. Default = True", default = TRUE)
+	parser$add_argument("--keepDosage", help="Whether to keep dosages or not (default = FALSE)", default = FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -388,6 +393,7 @@
         multiple = args$multiple
         excludeAPOE = args$exclude
 	fliprisk = args$risk
+	keepDos = args$keepDosage
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
@@ -397,6 +403,7 @@
         cat("\nMAF: ", maf)
         cat("\nWith and Without APOE: ", isdosage)
 	cat("\nFlip to risk allele: ", fliprisk)
+	cat("\nKeep dosages: ", keepDos)
         cat("\nPlot: ", plt, '\n\n')
 # Check inputs
     # Check output directory
@@ -430,7 +437,7 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk)
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos)
             if (excludeAPOE != FALSE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
