@@ -25,7 +25,7 @@ By running:
 ```console
 ./bin/jordan.R -h
 ```
-will display the help message. To run, `jordan` requires:  
+will display the help message. `jordan` parameters are:  
 - `--genotype` (**Mandatory**): genotype data in PLINK or VCF format  
 - `--snplist` (**Mandatory**): file containing the list of SNPs to use for the PRS, including at least CHROM, POS, EFFECT_ALLELE, OTHER_ALLELE, and BETA (or OR).  
 - `--outname` (**Mandatory**): the name of the output folder. If a directory exists, output files will be placed there, otherwise, the directory will be created.  
@@ -40,13 +40,9 @@ will display the help message. To run, `jordan` requires:
 
 ## PRS calculation
 PRS are weighted sum of trait-associated alleles, weighted by an effect size, typically originating from a GWAS study. In `jordan`, PRS calculation is implemented as:  
-$$
-PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp}
-$$
+$$ PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp}
 When an additional weight is selected with `--addWeight` option, then the formula will adapt accordingly to:  
-$$
-PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp} \cdot w_{snp}
-$$
+$$ PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp} \cdot w_{snp}
 
 ## Example usage
 Assuming a single PLINK file storing genotype data as dosages, no plots, PRS with and without APOE variants, with MAF>5%:  
