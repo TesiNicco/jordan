@@ -77,7 +77,7 @@
     }
 
     # Function to check input genotype file
-    checkInputSNPs = function(snps_file){
+    checkInputSNPs = function(snps_file, addWeight){
         # check if file exists
         if (file.exists(snps_file)){
             # open file
@@ -88,15 +88,39 @@
                     if ('EFFECT_ALLELE' %in% colnames(snps_data)){
                         if ('OTHER_ALLELE' %in% colnames(snps_data)){
                             if ('BETA' %in% colnames(snps_data)){
-                                run = TRUE
-                                res = list(run, snps_data)
-                                cat('** Required columns found\n')
+                                if (addWeight != FALSE){
+                                    if (addWeight %in% colnames(snps_data)){
+                                        run = TRUE
+                                        res = list(run, snps_data)
+                                        cat('** Required columns found\n')
+                                    } else {
+                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
+                                        run = FALSE
+                                        res = list(run, NA)
+                                    }
+                                } else {
+                                    run = TRUE
+                                    res = list(run, snps_data)
+                                    cat('** Required columns found\n')
+                                }
                             } else if ('OR' %in% colnames(snps_data)){
                                 # convert to BETA
                                 snps_data$BETA = log(as.numeric(snps_data$OR))
-                                run = TRUE
-                                res = list(run, snps_data)
-                                cat('** Required columns found\n')            
+                                if (addWeight != FALSE){
+                                    if (addWeight %in% colnames(snps_data)){
+                                        run = TRUE
+                                        res = list(run, snps_data)
+                                        cat('** Required columns found\n')
+                                    } else {
+                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
+                                        run = FALSE
+                                        res = list(run, NA)
+                                    }
+                                } else {
+                                    run = TRUE
+                                    res = list(run, snps_data)
+                                    cat('** Required columns found\n')
+                                }
                             } else {
                                 cat('** No BETA column found in SNP data.\n')
                                 run = FALSE
@@ -131,7 +155,7 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight){
         # match ids in the plink file and extract dosages/genotypes
         if (multiple == FALSE){
             res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
@@ -140,24 +164,24 @@
         }
         dosages = res[[1]]
         mappingSnp = res[[2]]
-	# if dosages need to be outputted, write them now
-	if (keepDos == TRUE){
-		write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
-	}
+	    # if dosages need to be outputted, write them now
+	    if (keepDos == TRUE){
+		    write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
+	    }
         # snps info flip to risk allele if this was requested
         snps_data$risk_allele = snps_data$EFFECT_ALLELE
-	if (fliprisk == TRUE){
-		snps_data$risk_beta = abs(snps_data$BETA)
+	    if (fliprisk == TRUE){
+		    snps_data$risk_beta = abs(snps_data$BETA)
 	        snps_data$risk_allele[which(snps_data$BETA <0)] = snps_data$OTHER_ALLELE[which(snps_data$BETA <0)]
-	} else {
-		snps_data$risk_beta = snps_data$BETA
-	}
+	    } else {
+		    snps_data$risk_beta = snps_data$BETA
+	    }
         # then do the prs
-        res = prs(snps_data, dosages, mappingSnp)
+        res = prs(snps_data, dosages, mappingSnp, addWeight)
         # if requested, do without apoe as well
         if (excludeAPOE != FALSE){
             snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
-            res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp)
+            res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
             return(list(res, res_noapoe))
         } else {
             return(res)
@@ -314,7 +338,7 @@
     }
 
     # Function to match risk alleles
-    prs = function(snps_data, dosages, mappingSnp){
+    prs = function(snps_data, dosages, mappingSnp, addWeight){
         prs_df = data.frame(iid = dosages$IID, PRS = 0)
         included_snps = data.frame()
         dosages = data.frame(dosages, check.names=F)
@@ -330,15 +354,21 @@
             # get the info from the snpdata
             temp_snpinfo = mappingSnp[which(mappingSnp$id == temp_name),]
             temp_snpdata = snps_data[which(snps_data$CHROM == temp_snpinfo$chr & snps_data$POS == temp_snpinfo$pos),]
+            # get additional weight if requested
+            if (addWeight != FALSE){
+                addWeight_num = as.numeric(temp_snpdata[, ..addWeight])
+            } else {
+                addWeight_num = 1
+            }
             # check if there are lines
             if (nrow(temp_snpdata) >0){
                 # check if the alleles are ok
                 if (temp_effect %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE) & temp_other %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE)){
                     # flip to risk
                     if (temp_snpdata$risk_allele == temp_effect){
-                        temp$score = temp[, 2] * temp_snpdata$risk_beta
+                        temp$score = temp[, 2] * temp_snpdata$risk_beta * addWeight_num
                     } else {
-                        temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta
+                        temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta * addWeight_num
                     }
                     # add to main df
                     prs_df$PRS = prs_df$PRS + temp$score
@@ -380,8 +410,9 @@
         parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default = FALSE)
         parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default = FALSE)
         parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS. Eg: 0.01 for MAF>1%%.", default = FALSE)
-	parser$add_argument("--risk", help="Calculate PRS wrt the risk allele, i.e., always flip BETA or OR to risk (BETA>0, OR>1) and adjust the alleles accordingly. Default = True", default = TRUE)
-	parser$add_argument("--keepDosage", help="Whether to keep dosages or not (default = FALSE)", default = FALSE)
+	    parser$add_argument("--risk", help="Calculate PRS wrt the risk allele, i.e., always flip BETA or OR to risk (BETA>0, OR>1) and adjust the alleles accordingly. Default = True", default = TRUE)
+	    parser$add_argument("--keepDosage", help="Whether to keep dosages or not (default = FALSE)", default = FALSE)
+        parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)        
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -392,8 +423,9 @@
         maf <- args$maf
         multiple = args$multiple
         excludeAPOE = args$exclude
-	fliprisk = args$risk
-	keepDos = args$keepDosage
+	    fliprisk = args$risk
+	    keepDos = args$keepDosage
+        addWeight = args$addWeight
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
@@ -402,8 +434,9 @@
         cat("\nDosage: ", isdosage)
         cat("\nMAF: ", maf)
         cat("\nWith and Without APOE: ", isdosage)
-	cat("\nFlip to risk allele: ", fliprisk)
-	cat("\nKeep dosages: ", keepDos)
+	    cat("\nFlip to risk allele: ", fliprisk)
+	    cat("\nKeep dosages: ", keepDos)
+        cat("\nAdditional weight: ", addWeight)
         cat("\nPlot: ", plt, '\n\n')
 # Check inputs
     # Check output directory
@@ -416,7 +449,7 @@
         genotype_path = res[[2]]
         genotype_type = res[[3]]
     # Check input snplist
-        res = checkInputSNPs(snps_file)
+        res = checkInputSNPs(snps_file, addWeight)
         run3 = res[[1]]
         snps_data = res[[2]]
     # Check maf
@@ -437,7 +470,7 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos)
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight)
             if (excludeAPOE != FALSE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
