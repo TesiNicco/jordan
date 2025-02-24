@@ -40,7 +40,7 @@ will display the help message. `jordan` parameters are:
 
 ## PRS calculation
 PRS are weighted sum of trait-associated alleles, weighted by an effect size, typically originating from a GWAS study. In `jordan`, PRS calculation is implemented as:  
-$$ PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp}
+$ PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp}
 When an additional weight is selected with `--addWeight` option, then the formula will adapt accordingly to:  
 $$ PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp} \cdot w_{snp}
 
