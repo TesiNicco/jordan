@@ -5,7 +5,10 @@ R script to calculate Polygenic Risk Score from genotype data, and eventually pl
 Clone the repository locally:
 `git clone https://github.com/TesiNicco/jordan.git`  
 You may need to make the main file executable by typing:
-`chmod +x ./jordan/bin/jordan.R`  
+```console
+chmod +x ./jordan/bin/jordan.R
+```
+
 Make sure you have the required R packages in place:  
 `argparse`  
 `data.table`  
