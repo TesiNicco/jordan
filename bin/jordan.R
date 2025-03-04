@@ -41,10 +41,10 @@
             # vcf file
             if (isdosage == TRUE){
                 cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp'))
+                system(paste0('plink2 --vcf ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             } else {
                 cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' --make-pgen --out ', outdir, '/tmp'))
+                system(paste0('plink2 --vcf ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             }
             run = TRUE
             data_path = paste0(outdir, '/tmp')
@@ -157,6 +157,7 @@
     # Function to guide PRS
     makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight){
         # match ids in the plink file and extract dosages/genotypes
+        cat('**** Matching SNPs and extracting dosages.\n')
         if (multiple == FALSE){
             res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
         } else {
@@ -177,9 +178,11 @@
 		    snps_data$risk_beta = snps_data$BETA
 	    }
         # then do the prs
+        cat('**** Calculating PRS.\n')
         res = prs(snps_data, dosages, mappingSnp, addWeight)
         # if requested, do without apoe as well
         if (excludeAPOE != FALSE){
+            cat('**** Removing APOE SNPs and re-calculating PRS.\n')
             snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
             res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
             return(list(res, res_noapoe))
@@ -228,15 +231,15 @@
         # extract these snps
         if (genotype_type == 'plink'){
             if (maf != FALSE){
-                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             } else {
-                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             }
         } else {
             if (maf != FALSE){
-                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             } else {
-                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             }
         }
         # read dosages
@@ -257,12 +260,12 @@
                 # read bim/pvar file
                 if (genotype_type == 'plink'){
                     #snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
-                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T, ignore.stderr=T), '\t', 7))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
                 } else {
                     #snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
-                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo = suppressWarnings(data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7)))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
                 }
@@ -300,15 +303,15 @@
                 # extract these snps
                 if (genotype_type == 'plink'){
                     if (maf != FALSE){
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     } else {
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     }
                 } else {
                     if (maf != FALSE){
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     } else {
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     }
                 }
                 # read dosages
@@ -330,7 +333,7 @@
                 system(paste0('rm ', outdir, '/dosages.raw'))
             },
             error = function(e){
-                cat(paste0('*** An error occurred. Skipping file ', f, '\n'))
+                cat(paste0('****** An error occurred with file ', f, ': Skipping this chromosome.\n'))
             })
         }
         res = list(all_dos, matchingsnps_all)
@@ -471,6 +474,7 @@
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
             res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight)
+            cat('**** Writing outputs.\n')
             if (excludeAPOE != FALSE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
@@ -509,6 +513,7 @@
                 write.table(included_snps, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
             }
             # clean temporary data
+            cat('**** Cleaning.\n')
             system(paste0('rm ', outdir, '/tmp*'))
             system(paste0('rm ', outdir, '/dosage*'))
             # check if plot needs to be done
