@@ -444,6 +444,12 @@
 	    fliprisk = args$risk
 	    keepDos = args$keepDosage
         addWeight = args$addWeight
+    # Make sure isdosage, multiple, excludeAPOE, fliprisk, keepDos and addWeight are logical
+        isdosage = ifelse(tolower(isdosage) == 'true', TRUE, FALSE)
+        multiple = ifelse(tolower(multiple) == 'true', TRUE, FALSE)
+        excludeAPOE = ifelse(tolower(excludeAPOE) == 'true', TRUE, FALSE)
+        fliprisk = ifelse(tolower(fliprisk) == 'true', TRUE, FALSE)
+        keepDos = ifelse(tolower(keepDos) == 'true', TRUE, FALSE)
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
