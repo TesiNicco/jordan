@@ -41,10 +41,10 @@
             # vcf file
             if (isdosage == TRUE){
                 cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp'))
+                system(paste0('plink2 --vcf ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             } else {
                 cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' --make-pgen --out ', outdir, '/tmp'))
+                system(paste0('plink2 --vcf ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             }
             run = TRUE
             data_path = paste0(outdir, '/tmp')
@@ -77,7 +77,7 @@
     }
 
     # Function to check input genotype file
-    checkInputSNPs = function(snps_file){
+    checkInputSNPs = function(snps_file, addWeight){
         # check if file exists
         if (file.exists(snps_file)){
             # open file
@@ -88,15 +88,39 @@
                     if ('EFFECT_ALLELE' %in% colnames(snps_data)){
                         if ('OTHER_ALLELE' %in% colnames(snps_data)){
                             if ('BETA' %in% colnames(snps_data)){
-                                run = TRUE
-                                res = list(run, snps_data)
-                                cat('** Required columns found\n')
+                                if (addWeight != FALSE){
+                                    if (addWeight %in% colnames(snps_data)){
+                                        run = TRUE
+                                        res = list(run, snps_data)
+                                        cat('** Required columns found\n')
+                                    } else {
+                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
+                                        run = FALSE
+                                        res = list(run, NA)
+                                    }
+                                } else {
+                                    run = TRUE
+                                    res = list(run, snps_data)
+                                    cat('** Required columns found\n')
+                                }
                             } else if ('OR' %in% colnames(snps_data)){
                                 # convert to BETA
                                 snps_data$BETA = log(as.numeric(snps_data$OR))
-                                run = TRUE
-                                res = list(run, snps_data)
-                                cat('** Required columns found\n')            
+                                if (addWeight != FALSE){
+                                    if (addWeight %in% colnames(snps_data)){
+                                        run = TRUE
+                                        res = list(run, snps_data)
+                                        cat('** Required columns found\n')
+                                    } else {
+                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
+                                        run = FALSE
+                                        res = list(run, NA)
+                                    }
+                                } else {
+                                    run = TRUE
+                                    res = list(run, snps_data)
+                                    cat('** Required columns found\n')
+                                }
                             } else {
                                 cat('** No BETA column found in SNP data.\n')
                                 run = FALSE
@@ -131,8 +155,9 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight){
         # match ids in the plink file and extract dosages/genotypes
+        cat('**** Matching SNPs and extracting dosages.\n')
         if (multiple == FALSE){
             res = matchIDs(genotype_path, snps_data, genotype_type, outdir, maf)
         } else {
@@ -140,16 +165,26 @@
         }
         dosages = res[[1]]
         mappingSnp = res[[2]]
-        # snps info flip to risk allele
+	    # if dosages need to be outputted, write them now
+	    if (keepDos == TRUE){
+		    write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
+	    }
+        # snps info flip to risk allele if this was requested
         snps_data$risk_allele = snps_data$EFFECT_ALLELE
-        snps_data$risk_beta = abs(snps_data$BETA)
-        snps_data$risk_allele[which(snps_data$BETA <0)] = snps_data$OTHER_ALLELE[which(snps_data$BETA <0)]
+	    if (fliprisk == TRUE){
+		    snps_data$risk_beta = abs(snps_data$BETA)
+	        snps_data$risk_allele[which(snps_data$BETA <0)] = snps_data$OTHER_ALLELE[which(snps_data$BETA <0)]
+	    } else {
+		    snps_data$risk_beta = snps_data$BETA
+	    }
         # then do the prs
-        res = prs(snps_data, dosages, mappingSnp)
+        cat('**** Calculating PRS.\n')
+        res = prs(snps_data, dosages, mappingSnp, addWeight)
         # if requested, do without apoe as well
         if (excludeAPOE != FALSE){
+            cat('**** Removing APOE SNPs and re-calculating PRS.\n')
             snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
-            res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp)
+            res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
             return(list(res, res_noapoe))
         } else {
             return(res)
@@ -196,15 +231,15 @@
         # extract these snps
         if (genotype_type == 'plink'){
             if (maf != FALSE){
-                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             } else {
-                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink --bfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             }
         } else {
             if (maf != FALSE){
-                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             } else {
-                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                system(paste0('plink2 --pfile ', genotype_path, ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
             }
         }
         # read dosages
@@ -225,12 +260,12 @@
                 # read bim/pvar file
                 if (genotype_type == 'plink'){
                     #snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
-                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T, ignore.stderr=T), '\t', 7))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
                 } else {
                     #snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
-                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7))
+                    snpsinfo = suppressWarnings(data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7)))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
                 }
@@ -268,15 +303,15 @@
                 # extract these snps
                 if (genotype_type == 'plink'){
                     if (maf != FALSE){
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     } else {
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     }
                 } else {
                     if (maf != FALSE){
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     } else {
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages'))
+                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                     }
                 }
                 # read dosages
@@ -298,7 +333,7 @@
                 system(paste0('rm ', outdir, '/dosages.raw'))
             },
             error = function(e){
-                cat(paste0('*** An error occurred. Skipping file ', f, '\n'))
+                cat(paste0('****** An error occurred with file ', f, ': Skipping this chromosome.\n'))
             })
         }
         res = list(all_dos, matchingsnps_all)
@@ -306,7 +341,7 @@
     }
 
     # Function to match risk alleles
-    prs = function(snps_data, dosages, mappingSnp){
+    prs = function(snps_data, dosages, mappingSnp, addWeight){
         prs_df = data.frame(iid = dosages$IID, PRS = 0)
         included_snps = data.frame()
         dosages = data.frame(dosages, check.names=F)
@@ -322,15 +357,21 @@
             # get the info from the snpdata
             temp_snpinfo = mappingSnp[which(mappingSnp$id == temp_name),]
             temp_snpdata = snps_data[which(snps_data$CHROM == temp_snpinfo$chr & snps_data$POS == temp_snpinfo$pos),]
+            # get additional weight if requested
+            if (addWeight != FALSE){
+                addWeight_num = as.numeric(temp_snpdata[, ..addWeight])
+            } else {
+                addWeight_num = 1
+            }
             # check if there are lines
             if (nrow(temp_snpdata) >0){
                 # check if the alleles are ok
                 if (temp_effect %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE) & temp_other %in% c(temp_snpdata$EFFECT_ALLELE, temp_snpdata$OTHER_ALLELE)){
                     # flip to risk
                     if (temp_snpdata$risk_allele == temp_effect){
-                        temp$score = temp[, 2] * temp_snpdata$risk_beta
+                        temp$score = temp[, 2] * temp_snpdata$risk_beta * addWeight_num
                     } else {
-                        temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta
+                        temp$score = (2 - temp[, 2]) * temp_snpdata$risk_beta * addWeight_num
                     }
                     # add to main df
                     prs_df$PRS = prs_df$PRS + temp$score
@@ -367,11 +408,14 @@
         parser$add_argument("--genotype", help = "Path to the genotype file. If PLINK, do NOT provide file extension. If VCF, please provide the file extension. If multiple PLINK files should be used, input the path of the first file, and all PLINK files in the directory where the input files are will be used.")
         parser$add_argument("--snplist", help = "Path to the SNPs file. This file will define the SNPs to include in the PRS and the relative weights. By default, required column names are CHROM, POS, EFFECT_ALLELE, OTHER_ALLELE and BETA, (or OR)")
         parser$add_argument("--outname", help = "Path to output PRS file. A new directory can be specified. In that case, the directory will be created and the file with be written to the new directory.")
-        parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default=FALSE)
-        parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default=FALSE)
-        parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default=FALSE)
-        parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants.", default=FALSE)
-        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS. Eg: 0.01 for MAF>1%.", default = FALSE)
+        parser$add_argument("--isdosage", help="Whether Input data is imputed or genotyped. The information is used to read genotypes in PLINK.", default = FALSE)
+        parser$add_argument("--plot", help="Whether to plot (default = FALSE) or not the PRS densities.", default = FALSE)
+        parser$add_argument("--multiple", help="Whether multiple PLINK files should be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default = FALSE)
+        parser$add_argument("--exclude", help="Whether to make PRS also excluding APOE SNPs. These by default are APOE e2 and APOE e4 variants. Default = False", default = FALSE)
+        parser$add_argument("--maf", help="Minor Allele Frequency (MAF) threshold, as calculated in the genotype data, to include or exclude variants for the PRS. Eg: 0.01 for MAF>1%%.", default = FALSE)
+	    parser$add_argument("--risk", help="Calculate PRS wrt the risk allele, i.e., always flip BETA or OR to risk (BETA>0, OR>1) and adjust the alleles accordingly. Default = True", default = TRUE)
+	    parser$add_argument("--keepDosage", help="Whether to keep dosages or not (default = FALSE)", default = FALSE)
+        parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)        
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -382,6 +426,9 @@
         maf <- args$maf
         multiple = args$multiple
         excludeAPOE = args$exclude
+	    fliprisk = args$risk
+	    keepDos = args$keepDosage
+        addWeight = args$addWeight
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
@@ -389,7 +436,10 @@
         cat("\nOutput file: ", outfile)
         cat("\nDosage: ", isdosage)
         cat("\nMAF: ", maf)
-        cat("\nWith and Without APOE: ", isdosage)
+        cat("\nWith and Without APOE: ", excludeAPOE)
+	    cat("\nFlip to risk allele: ", fliprisk)
+	    cat("\nKeep dosages: ", keepDos)
+        cat("\nAdditional weight: ", addWeight)
         cat("\nPlot: ", plt, '\n\n')
 # Check inputs
     # Check output directory
@@ -402,7 +452,7 @@
         genotype_path = res[[2]]
         genotype_type = res[[3]]
     # Check input snplist
-        res = checkInputSNPs(snps_file)
+        res = checkInputSNPs(snps_file, addWeight)
         run3 = res[[1]]
         snps_data = res[[2]]
     # Check maf
@@ -423,7 +473,8 @@
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
             cat('** Inputs are valid. Starting the script.\n\n')
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf)
+            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight)
+            cat('**** Writing outputs.\n')
             if (excludeAPOE != FALSE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
@@ -462,6 +513,7 @@
                 write.table(included_snps, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
             }
             # clean temporary data
+            cat('**** Cleaning.\n')
             system(paste0('rm ', outdir, '/tmp*'))
             system(paste0('rm ', outdir, '/dosage*'))
             # check if plot needs to be done
