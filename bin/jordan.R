@@ -169,6 +169,8 @@
 	    if (keepDos == TRUE){
 		    write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
 	    }
+        # check for nas and in case exclude them as well as update the mappingSNP
+        dosages = excludeNAs(dosages)
         # snps info flip to risk allele if this was requested
         snps_data$risk_allele = snps_data$EFFECT_ALLELE
 	    if (fliprisk == TRUE){
@@ -189,6 +191,19 @@
         } else {
             return(res)
         }
+    }
+
+    # Function to check for NAs
+    excludeNAs = function(dosages){
+        # check for NAs
+        if (any(is.na(dosages))){
+            cat('** There are NAs in the dosages. Data is likely from WGS. Excluding them.\n')
+            # make sure dosages is a dataframe
+            dosages = data.frame(dosages, check.names=F)
+            # remove the columns with NAs
+            df_clean <- dosages[, colSums(is.na(dosages)) == 0]
+        }
+        return(df_clean)
     }
 
     # Function to match snp IDs and extract genotypes
