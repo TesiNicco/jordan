@@ -163,7 +163,7 @@
             snpsinfo = data.table::fread(paste0(genotype_path, '.bim'), h=F, stringsAsFactors=F)
             colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
         } else {
-            snpsinfo = data.table::fread(paste0(genotype_path, '.pvar'), h=T, stringsAsFactors=F)
+            snpsinfo = data.table::fread(paste0(genotype_path, '.pvar'), h=T, stringsAsFactors=F, skip = '#CHROM')
             colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
         }
         # create identifier with chrom:pos
