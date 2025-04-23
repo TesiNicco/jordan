@@ -202,8 +202,10 @@
             dosages = data.frame(dosages, check.names=F)
             # remove the columns with NAs
             df_clean <- dosages[, colSums(is.na(dosages)) == 0]
+            return(df_clean)
+        } else {
+            return(dosages)
         }
-        return(df_clean)
     }
 
     # Function to match snp IDs and extract genotypes
