@@ -419,6 +419,17 @@
         return('Plots are done!')
     }
 
+    # Function to write log file
+    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight){
+        # Define output name
+        outname = paste0(outdir, '/run_info.log')
+        # Create log info
+        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nFlip to risk allele: ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nPlot: ", plt, '\n\n')
+        # Write log file
+        writeLines(info, outname)
+        return(info)
+    }
+
 # Parse arguments
     # Add required arguments
         parser <- ArgumentParser(description = "makePRS: a script to make PRS in R")
@@ -495,6 +506,8 @@
         if (run1 == FALSE | run2 == FALSE | run3 == FALSE | run4 == FALSE){
             stop("** Inputs are not valid. Check above messages and try again.\n\n")
         } else {
+            # Add log file with run info to the output folder
+            log = writeLog(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight)
             cat('** Inputs are valid. Starting the script.\n\n')
             res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight)
             cat('**** Writing outputs.\n')
