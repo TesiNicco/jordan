@@ -10,61 +10,54 @@
         # check if directory exists otherwise create it
         if (dir.exists(outname)){
             cat('** Output directory is valid and exists.\n')
-            run=TRUE
-            res = list(run, outname)            
+            res = outname
         } else {
             tryCatch({
                 system(paste0('mkdir ', outname))
                 cat('** Output directory does not exist. Will create.\n')
-                run = TRUE
-                res = list(run, outname)
+                res = outname
             }, error = function(e) {
-                print(paste("** Can not create output directory. Path is invalid.\n", conditionMessage(e)))
-                run = FALSE
-                res = list(run, outname)
+                stop("** Error! Can not create output directory. Path is invalid.\n\n", call. = FALSE)
             })            
         }
         return(res)
     }
 
     # Function to check input genotype file
-    checkGenoFile = function(genotype_file, outdir, isdosage, multiple){
+    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run){
         # check if file is a vcf/bcf
-        if (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz')){
+        if (file.exists(genotype_file) && (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz'))){
+            # check if the file is a vcf/bcf
+            vcftype = ifelse(endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz'), 'vcf', 'bcf')
             # vcf file
             if (isdosage == TRUE){
                 cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0('plink2 --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             } else {
                 cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0('plink2 --vcf ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0('plink2 --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             }
-            run = TRUE
-            data_path = paste0(outdir, '/tmp')
-            res = list(run, data_path, 'plink2')
+            data_path = paste0(outdir, '/tmp.pvar')
+            res = list(data_path, 'plink2')
         } else if (file.exists(paste0(genotype_file, '.pvar'))){
             genotype_file = paste0(genotype_file, '.pvar')
             cat('** PLINK2 file found.\n')
-            run = TRUE
             # check other chromosomes if present
             if (multiple == TRUE){
                 all_files = system(paste0('ls ', dirname(genotype_file), '/*pvar'), intern=TRUE)
                 genotype_file = all_files
             }
-            res = list(run, genotype_file, 'plink2')
+            res = list(genotype_file, 'plink2')
         } else if (file.exists(paste0(genotype_file, '.bim'))){
             genotype_file = paste0(genotype_file, '.bim')
             cat('** PLINK file found.\n')
-            run = TRUE
             if (multiple == TRUE){
                 all_files = system(paste0('ls ', dirname(genotype_file), '/*bim'), intern=TRUE)
                 genotype_file = all_files
             }
-            res = list(run, genotype_file, 'plink')
+            res = list(genotype_file, 'plink')
         } else {
-            cat('** Unknown genotype file provided. \n')
-            run = FALSE
-            res = list(run, genotype_file, NA)
+            stop('** Genotype file not found. Please provide a valid file.\n\n', call. = FALSE)
         }
         return(res)
     }
@@ -76,73 +69,53 @@
             # open file
             snps_data = data.table::fread(snps_file, h=T, stringsAsFactors=F, sep="\t")
             # check column names
-            if ('CHROM' %in% colnames(snps_data)){
-                if ('POS' %in% colnames(snps_data)){
-                    if ('EFFECT_ALLELE' %in% colnames(snps_data)){
-                        if ('OTHER_ALLELE' %in% colnames(snps_data)){
-                            if ('BETA' %in% colnames(snps_data)){
+            if ('CHROM' %in% toupper(colnames(snps_data))){
+                if ('POS' %in% toupper(colnames(snps_data))){
+                    if ('EFFECT_ALLELE' %in% toupper(colnames(snps_data))){
+                        if ('OTHER_ALLELE' %in% toupper(colnames(snps_data))){
+                            if ('BETA' %in% toupper(colnames(snps_data))){
                                 if (addWeight != FALSE){
-                                    if (addWeight %in% colnames(snps_data)){
-                                        run = TRUE
-                                        res = list(run, snps_data)
+                                    if (toupper(addWeight) %in% toupper(colnames(snps_data))){
+                                        res = snps_data
                                         cat('** Required columns found\n')
                                     } else {
-                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
-                                        run = FALSE
-                                        res = list(run, NA)
+                                        stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
                                     }
                                 } else {
-                                    run = TRUE
-                                    res = list(run, snps_data)
+                                    res = snps_data
                                     cat('** Required columns found\n')
                                 }
-                            } else if ('OR' %in% colnames(snps_data)){
+                            } else if ('OR' %in% toupper(colnames(snps_data))){
                                 # convert to BETA
                                 snps_data$BETA = log(as.numeric(snps_data$OR))
                                 if (addWeight != FALSE){
                                     if (addWeight %in% colnames(snps_data)){
-                                        run = TRUE
-                                        res = list(run, snps_data)
+                                        res = snps_data
                                         cat('** Required columns found\n')
                                     } else {
-                                        cat('** Additional weight was selected, but column was not found in SNP data.\n')
-                                        run = FALSE
-                                        res = list(run, NA)
+                                        stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
                                     }
                                 } else {
-                                    run = TRUE
-                                    res = list(run, snps_data)
+                                    res = snps_data
                                     cat('** Required columns found\n')
                                 }
                             } else {
-                                cat('** No BETA column found in SNP data.\n')
-                                run = FALSE
-                                res = list(run, NA)
+                                stop('** No BETA or OR column found in SNP data.\n\n', call. = FALSE)
                             }
                         } else {
-                            cat('** No OTHER_ALLELE column found in SNP data.\n')
-                            run = FALSE
-                            res = list(run, NA)
+                            stop('** No OTHER_ALLELE column found in SNP data.\n\n', call. = FALSE)
                         }
                     } else {
-                        cat('** No EFFECT_ALLELE column found in SNP data.\n')
-                        run = FALSE
-                        res = list(run, NA)
+                        stop('** No EFFECT_ALLELE column found in SNP data.\n\n', call. = FALSE)
                     }
                 } else {
-                    cat('** No POS column found in SNP data.\n')
-                    run = FALSE
-                    res = list(run, NA)
+                    cat('** No POS column found in SNP data.\n\n', call. = FALSE)
                 }
             } else {
-                cat('** No CHROM column found in SNP data.\n')
-                run = FALSE
-                res = list(run, NA)
+                stop('** No CHROM column found in SNP data.\n\n', call. = FALSE)
             }
         } else {
-            cat('** SNP data file does not exist.\n')
-            run = FALSE
-            res = list(run, NA)
+            stop('** SNP data file does not exist.\n\n', call. = FALSE)
         }
         return(res)
     }
@@ -170,7 +143,7 @@
 		    snps_data$risk_beta = snps_data$BETA
 	    }
         # then do the prs
-        cat('**** Calculating PRS.\n')
+        cat('\n**** Calculating PRS.\n')
         res = prs(snps_data, dosages, mappingSnp, addWeight)
         # if requested, do without apoe as well
         if (excludeAPOE != FALSE){
@@ -210,12 +183,10 @@
             tryCatch({
                 # read bim/pvar file
                 if (genotype_type == 'plink'){
-                    #snpsinfo = data.table::fread(f, h=F, stringsAsFactors=F)
-                    snpsinfo = data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T, ignore.stderr=T), '\t', 7))
+                    snpsinfo = suppressWarnings(data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T, ignore.stderr=T), '\t', 7)))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo) = c('chr', 'id', 'na', 'pos', 'ref', 'alt')
                 } else {
-                    #snpsinfo = data.table::fread(f, h=T, stringsAsFactors=F)
                     snpsinfo = suppressWarnings(data.frame(str_split_fixed(system(paste0('grep -f ', outdir, '/tmp_positions.txt ', f), intern=T), '\t', 7)))
                     snpsinfo <- snpsinfo[, apply(snpsinfo, 2, function(x) any(x != "" & !is.na(x)))]
                     colnames(snpsinfo)[1:5] = c('chr', 'pos', 'id', 'ref', 'alt')
@@ -284,7 +255,7 @@
                         if (freq == TRUE){
                             system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
-                            freq_file = data.table::fread(paste0(outdir, '/frequencies.frq'), h=T, stringsAsFactors=F)
+                            freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
@@ -295,7 +266,7 @@
                         if (freq == TRUE){
                             system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
-                            freq_file = data.table::fread(paste0(outdir, '/frequencies.frq'), h=T, stringsAsFactors=F)
+                            freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
@@ -380,27 +351,234 @@
     }
 
     # Function to draw plot
-    makePlot = function(prs_df, included_snps, outdir){
+    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data){
+        # define title of the plots
+        density_title = ifelse(suffix == "", paste0('PRS based on ', nrow(included_snps), ' SNPs'), paste0('PRS based on ', nrow(included_snps), ' SNPs (APOE excluded)'))
+        snps_title = ifelse(suffix == "", 'Beta of SNPs', 'Beta of SNPs (APOE excluded)')
         # plot density
-        pdf(paste0(outdir, '/PRS_density.pdf'), height = 7, width = 7)
-        plt_density = ggplot(data = prs_df, aes(x = PRS, fill = 'red')) + geom_density() + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(paste0('PRS based on ', nrow(included_snps), ' SNPs'))
+        plt_density = ggplot(data = prs_df, aes(x = PRS, fill = 'red')) + geom_density() + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'none')
+        pdf(paste0(outdir, '/PRS_density', suffix, '.pdf'), height = 7, width = 7)
         print(plt_density)
-        dev.off()
+        invisible(dev.off())
         # plot snps
-        pdf(paste0(outdir, '/PRS_SNPs.pdf'), height = 7, width = 7)
-        plt_snps = ggplot(data = included_snps[which(included_snps$TYPE == 'Included'),], aes(y = SNP, x = BETA)) + geom_point(stat = 'identity') + xlab('Beta') + ylab('SNP') + ggtitle('Beta of SNPs included in PRS')
+        # add the missing snps to the included snps
+        # construct ID fields
+        included_snps$ID <- paste(included_snps$CHROM, included_snps$POS, sep = ":")
+        snps_data$ID <- paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep = ":")
+        snps_data$SNP <- paste(snps_data$CHROM, snps_data$POS, sep = ":")
+        # identify missing SNPs
+        missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
+        if (nrow(missing) > 0) {
+            excluded <- data.frame(SNP = missing$SNP, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
+            included_snps <- rbind(included_snps, excluded)
+        }
+        included_snps$TYPE = factor(included_snps$TYPE, levels = c('Included', 'Excluded'))
+        # order
+        included_snps = included_snps[order(included_snps$TYPE, included_snps$BETA),]
+        # set order
+        included_snps$SNP = factor(included_snps$SNP, levels = unique(included_snps$SNP))
+        # define dynamically the height of the plot
+        base_height = 5
+        height_per_row = 0.125
+        plot_height = max(5, min(60, base_height + nrow(included_snps) * height_per_row))
+        # then the plot
+        plt_snps = ggplot(data = included_snps, aes(y = SNP, x = BETA, color = TYPE)) + geom_point(stat = 'identity', size = 2) + xlab('Beta') + ylab('SNP') + ggtitle(snps_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14)) + scale_color_manual(values = c('Included' = 'navy', 'Excluded' = 'red')) + labs(color = "Type") + scale_x_continuous(expand = expansion(mult = c(0.05, 0.20)))
+        pdf(paste0(outdir, '/PRS_SNPs', suffix, '.pdf'), height = plot_height, width = 7)
         print(plt_snps)
-        dev.off()     
-        return('Plots are done!')
+        invisible(dev.off())
     }
 
     # Function to write log file
-    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq){
+    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov){
         # Define output name
         outname = paste0(outdir, '/run_info.log')
         # Create log info
-        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n')
+        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\n\n')
         # Write log file
         writeLines(info, outname)
         return(info)
+    }
+
+    # Function to write output
+    write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir) {
+        # Write PRS table
+        write.table(prs_df, paste0(outdir, '/PRS_table', suffix, '.txt'), quote = FALSE, row.names = FALSE, sep = "\t")
+        # Construct ID fields
+        included_snps$ID <- paste(included_snps$CHROM, included_snps$POS, sep = ":")
+        snps_data$ID <- paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep = ":")
+        # Identify missing SNPs
+        missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
+        if (nrow(missing) > 0) {
+            excluded <- data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
+            included_snps <- rbind(included_snps, excluded)
+        }
+        # Write SNPs included (and excluded) file
+        write.table(included_snps, paste0(outdir, '/SNPs_included_PRS', suffix, '.txt'), quote = FALSE, row.names = FALSE, sep = "\t")
+    }
+
+    # Function to check association variables
+    checkAssocVar = function(assoc_var, assoc_data){
+        # check if variables were provided
+        if (assoc_var[1] == FALSE){
+            stop('** No association variables provided.\n\n', call. = FALSE)
+        }
+        # unlist the variables
+        assoc_var = unlist(strsplit(assoc_var, ','))
+        # check if variables are in the data
+        assoc_var = assoc_var[which(toupper(assoc_var) %in% toupper(colnames(assoc_data)))]
+        if (length(assoc_var) == 0){
+            stop('** No association variables found in the data. Did you mispelled the variable names?.\n\n', call. = FALSE)
+        }
+        # Define a dataframe with the association variables
+        df_variables = data.frame()
+        # Check if the variables are numeric or categorical
+        for (i in 1:length(assoc_var)){
+            if (length(table(assoc_data[, assoc_var[i]])) == 2){
+                # check if the variable is numeric
+                if (is.numeric(assoc_data[, assoc_var[i]])){
+                    cat('**** Variable ', assoc_var[i], ': numeric with 2 values. Logistic regression will be used.\n')
+                    # make sure the smaller is 0 and the larger is 1
+                    min_value = min(assoc_data[, assoc_var[i]], na.rm=T)
+                    # store the mapping before updating the data
+                    var_mapping = paste0(min_value, ' -> 0; ', max(assoc_data[, assoc_var[i]], na.rm=T), ' -> 1')
+                    # update values
+                    assoc_data[, assoc_var[i]] = ifelse(assoc_data[, assoc_var[i]] == min_value, 0, 1)
+                    # update dataframe
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'binomial', mapping = var_mapping))
+                } else {
+                    cat('**** Variable ', assoc_var[i], ': categorical with 2 values. Logistic regression will be used.\n')
+                    # make sure the smaller is 0 and the larger is 1
+                    min_value = min(assoc_data[, assoc_var[i]], na.rm=T)
+                    # store the mapping before updating the data
+                    var_mapping = paste0(min_value, ' -> 0; ', max(assoc_data[, assoc_var[i]], na.rm=T), ' -> 1')
+                    # update values
+                    assoc_data[, assoc_var[i]] = ifelse(assoc_data[, assoc_var[i]] == min_value, 0, 1)
+                    # update dataframe
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'categorical', model = 'binomial', mapping = var_mapping))
+                }
+            } else {
+                # check if the variable is numeric
+                if (is.numeric(assoc_data[, assoc_var[i]])){
+                    cat('**** Variable ', assoc_var[i], ': numeric with more than 2 values. Linear regression will be used.\n')
+                    # store the mapping before updating the data
+                    var_mapping = paste0('No mapping needed')
+                    # update dataframe
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'gaussian', mapping = var_mapping))
+                } else {
+                    cat('**** Variable ', assoc_var[i], ': categorical with more than 2 values. Linear regression will be used.\n')
+                    # store the mapping before updating the data
+                    var_mapping = paste0('No mapping needed')
+                    # update dataframe
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'categorical', model = 'gaussian', mapping = var_mapping))
+                }
+            }
+        }
+        return(list(df_variables, assoc_data))
+    }
+
+    # Function to check covariates
+    checkAssocCov = function(assoc_cov, assoc_data){
+        # check if covariates were provided
+        if (assoc_cov[1] == FALSE){
+            cat('**** No association covariates provided.\n\n')
+            return(NA)
+        } else {
+            # unlist the variables
+            assoc_cov = unlist(strsplit(assoc_cov, ','))
+            # check if variables are in the data
+            assoc_cov = assoc_cov[which(toupper(assoc_cov) %in% toupper(colnames(assoc_data)))]
+            if (length(assoc_cov) == 0){
+                stop('** No association covariates found in the data. Did you mispelled the variable names?.\n\n', call. = FALSE)
+            }
+            cat('**** Covariates found: ', paste(assoc_cov, collapse = ', '), '\n')
+            return(assoc_cov)
+        }
+    }
+
+    # Function to check association file
+    checkAssocFile = function(assoc, assoc_var, assoc_cov){
+        # check if file exists
+        if (file.exists(assoc)){
+            cat('** Association data file found.\n')
+            # open file
+            assoc_data = fread(assoc, h=T, stringsAsFactors=F, sep="\t")
+            # check if the file is empty
+            if (nrow(assoc_data) == 0){
+                stop('** Association data file is empty.\n\n', call. = FALSE)
+            }
+            # convert to dataframe
+            assoc_data = data.frame(assoc_data, check.names=F)
+            # convert nas to NA
+            assoc_data[assoc_data == ''] = NA
+            assoc_data[toupper(assoc_data) == 'NA'] = NA
+            assoc_data[toupper(assoc_data) == 'N/A'] = NA
+            assoc_data[toupper(assoc_data) == 'NAN'] = NA
+            # check if IID is in the columns
+            if ('IID' %in% toupper(colnames(assoc_data))){
+                # get the name of the IID column
+                idname = colnames(assoc_data)[which(toupper(colnames(assoc_data)) == 'IID')]
+                # check variable to associate
+                outcome_info = checkAssocVar(assoc_var, assoc_data)
+                df_variables = outcome_info[[1]]
+                assoc_data = outcome_info[[2]]
+                # check covariates
+                covar_names = checkAssocCov(assoc_cov, assoc_data)
+            } else {
+                stop('** No IID column found in association data.\n\n', call. = FALSE)
+            }
+        } else {
+            stop('** Association data file does not exist.\n\n', call. = FALSE)
+        }
+        return(list(idname, assoc_data, df_variables, covar_names))
+    }
+
+    # Function to run association
+    assoc_test = function(prs_df, assoc_info, outdir, suffix){
+        # extract association info
+        assoc_idname = assoc_info[[1]]
+        assoc_data = assoc_info[[2]]
+        assoc_variables = assoc_info[[3]]
+        assoc_covariates = assoc_info[[4]]
+        # merge the prs with association info
+        prs_df_pheno = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+        if (nrow(prs_df_pheno) == 0){
+            stop('** No matching individuals between PRS and association data.\n\n', call. = FALSE)
+        }
+        # Scale PRS before association
+        prs_df_pheno$PRS = scale(prs_df_pheno$PRS)
+        # Define container for the results
+        assoc_results = data.frame()
+        # iterate over the variables
+        for (i in 1:nrow(assoc_variables)){
+            cat(paste0('****** Running association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            # get the variable name
+            var_name = assoc_variables$variable[i]
+            # get the model type
+            model_type = assoc_variables$model[i]
+            # get the covariates
+            covar_names = assoc_covariates
+            # get the mapping
+            var_mapping = assoc_variables$mapping[i]
+            # check if there are covariates
+            if (length(na.omit(covar_names)) > 0){
+                # create formula
+                formula = as.formula(paste0(var_name, ' ~ PRS + ', paste(covar_names, collapse = ' + ')))
+            } else {
+                formula = as.formula(paste0(var_name, ' ~ PRS'))
+            }
+            # calculate number of cases and controls for logistic regression
+            if (model_type == 'binomial'){
+                n_cases = nrow(prs_df_pheno[which(prs_df_pheno[, var_name] == 1),])
+                n_controls = nrow(prs_df_pheno[which(prs_df_pheno[, var_name] == 0),])
+            } else {
+                n_cases = NA
+                n_controls = NA
+            }
+            # perform association test
+            model = suppressWarnings(glm(formula, data = prs_df_pheno, family = model_type))
+            # add to the results
+            assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(prs_df_pheno), N_missing = sum(is.na(prs_df_pheno[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(prs_df_pheno) - sum(is.na(prs_df_pheno[, var_name])), N_cases = n_cases, N_controls = n_controls, stringsAsFactors = F))
+        }
+        # write the results
+        write.table(assoc_results, paste0(outdir, '/association_results', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
     }

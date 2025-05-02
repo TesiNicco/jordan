@@ -42,6 +42,12 @@
         parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)
         # Minor allele frequency filter
         parser$add_argument("--maf", help="When present, a filtering based on Minor Allele Frequency (MAF) will be applied. Usage: 0.01 for MAF>1%%.", default = FALSE)
+        # Association file
+        parser$add_argument("--assoc", help="When present, association testing will be conducted. By default, the models are pairwise logistic regression models (if categorical variables are detected), and linear regression models (if numerical variables are detected). Please provide a file with labels to associate: the file should contain IID column with the sample names, and the variables to associate. Use argument --assoc-var to define variables to associate and --assoc-cov to define covariates.", default = FALSE)
+        # Association variables
+        parser$add_argument("--assoc-var", help="Comma-separated list of the variables to associate.", default = FALSE)
+        # Association covariates
+        parser$add_argument("--assoc-cov", help="Comma-separated list of the covariates to include in the association testing.", default = FALSE)
 
     # Read arguments
         args <- parser$parse_args()
@@ -57,6 +63,9 @@
 	    keepDos = args$keepDosage
         addWeight = args$addWeight
         freq = args$freq
+        assoc = args$assoc
+        assoc_var = args$assoc_var
+        assoc_cov = args$assoc_cov
 
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
@@ -70,103 +79,86 @@
 	    cat("\nKeep dosages: ", keepDos)
         cat("\nAdditional weight: ", addWeight)
         cat("\nCalculate frequency: ", freq)
+        cat("\nAssociation testing: ", assoc)
+        cat("\nAssociation variables: ", assoc_var)
+        cat("\nAssociation covariates: ", assoc_cov)
         cat("\nPlot: ", plt, '\n\n')
     
 # Check inputs
     # Check output directory
-        res = checkOutputFile(outfile)
-        run1 = res[[1]]
-        outdir = res[[2]]
+        outdir = checkOutputFile(outfile)
 
     # Check input genotype file
         res = checkGenoFile(genotype_file, outdir, dosage, multiple)
-        run2 = res[[1]]
-        genotype_path = res[[2]]
-        genotype_type = res[[3]]
+        genotype_path = res[[1]]
+        genotype_type = res[[2]]
 
     # Check input snplist
-        res = checkInputSNPs(snps_file, addWeight)
-        run3 = res[[1]]
-        snps_data = res[[2]]
+        snps_data = checkInputSNPs(snps_file, addWeight)
 
     # Check maf
         if (maf != FALSE){
-            tryCatch({
-                maf = as.numeric(maf)
-                run4 = TRUE
-            }, error = function(e) {
-                print(paste("** The MAF value is not numeric. It should be, for example, 0.01 for MAF=1%.\n", conditionMessage(e)))
-                run4 = FALSE
-            })  
-        } else {
-            maf = FALSE
-            run4 = TRUE
+            maf = suppressWarnings(as.numeric(maf))
+            if (is.na(maf)){ stop("** The MAF value is not numeric. It should be, for example, 0.01 for MAF=1%.\n\n", call. = FALSE) }
+        }
+    
+    # Check association file
+        if (assoc != FALSE){
+            assoc_info = checkAssocFile(assoc, assoc_var, assoc_cov)
         }
 
     # Final check before running
-        if (run1 == FALSE | run2 == FALSE | run3 == FALSE | run4 == FALSE){
-            stop("** Inputs are not valid. Check above messages and try again.\n\n")
-        } else {
-            cat('** Inputs are valid. Starting the script.\n\n')
+        cat('\n** Inputs are valid. Starting the script.\n\n')
             
-            # Add log file with run info to the output folder
-            log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq)
+        # Add log file with run info to the output folder
+        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov)
             
-            # Calculate PRS
-            res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq)
+        # Calculate PRS
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq)
 
-            # Write outputs
-            cat('**** Writing outputs.\n')
-            if (excludeAPOE == TRUE){
-                # Split results
+        # Write outputs
+        cat('\n**** Writing outputs.\n')
+        if (excludeAPOE){
+            res_apoe = res[[1]]
+            res_noapoe = res[[2]]
+            # Write PRS with and without APOE
+            write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir)
+            write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir)
+        } else {
+            write_prs_outputs(res[[1]], res[[2]], snps_data, "", outdir)
+        }
+
+        # Association testing
+        if (assoc != FALSE){
+            cat('\n**** Association testing.\n')
+            if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
-                # Get PRS dataframes and snp information
-                prs_df_apoe = res_apoe[[1]]
-                included_snps_apoe = res_apoe[[2]]
-                prs_df_noapoe = res_noapoe[[1]]
-                included_snps_noapoe = res_noapoe[[2]]
-                # Write prs output
-                write.table(prs_df_apoe, paste0(outdir, '/PRS_table.txt'), quote=F, row.names=F, sep="\t")
-                write.table(prs_df_noapoe, paste0(outdir, '/PRS_table_noAPOE.txt'), quote=F, row.names=F, sep="\t")
-                # Fill included snps file with those that are excluded as well
-                included_snps_apoe$ID = paste(included_snps_apoe$CHROM, included_snps_apoe$POS, sep=":")
-                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
-                missing = snps_data[which(!(snps_data$ID %in% included_snps_apoe$ID)),]
-                if (nrow(missing) >0){ included_snps_apoe = rbind(included_snps_apoe, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
-                # Write these outputs
-                write.table(included_snps_apoe, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
-                # Same for set without APOE
-                included_snps_noapoe$ID = paste(included_snps_noapoe$CHROM, included_snps_noapoe$POS, sep=":")
-                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
-                missing = snps_data[which(!(snps_data$ID %in% included_snps_noapoe$ID)),]
-                if (nrow(missing) >0){ included_snps_noapoe = rbind(included_snps_noapoe, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
-                # Write these outputs
-                write.table(included_snps_noapoe, paste0(outdir, '/SNPs_included_PRS_noAPOE.txt'), quote=F, row.names=F, sep="\t")
+                assoc_test(res_apoe[[1]], assoc_info, outdir, "")
+                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE")
             } else {
-                # Get PRS dataframe and snp information
-                prs_df = res[[1]]
-                included_snps = res[[2]]
-                # Write prs output
-                write.table(prs_df, paste0(outdir, '/PRS_table.txt'), quote=F, row.names=F, sep="\t")
-                # Fill included snps file with those that are excluded as well
-                included_snps$ID = paste(included_snps$CHROM, included_snps$POS, sep=":")
-                snps_data$ID = paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep=":")
-                missing = snps_data[which(!(snps_data$ID %in% included_snps$ID)),]
-                if (nrow(missing) >0){ included_snps = rbind(included_snps, data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)) }
-                # Write these outputs
-                write.table(included_snps, paste0(outdir, '/SNPs_included_PRS.txt'), quote=F, row.names=F, sep="\t")
+                assoc_test(res[[1]], assoc_info, outdir, "")
             }
-
-            # Clean temporary data
-            cat('**** Cleaning.\n')
-            system(paste0('rm ', outdir, '/tmp*'), ignore.stdout = TRUE, ignore.stderr = TRUE)
-            system(paste0('rm ', outdir, '/dosage*'), ignore.stdout = TRUE, ignore.stderr = TRUE)
-            
-            # Check if plot needs to be done
-            if (plt == TRUE){
-                makePlot(prs_df, included_snps, outdir)
-            }
-            # end message
-            cat('\n\n** Analysis over. Ciao! \n\n')
         }
+
+        # Clean temporary data
+        cat('\n**** Cleaning.\n')
+        system(paste0('rm ', outdir, '/tmp*'), ignore.stdout = TRUE, ignore.stderr = TRUE)
+        system(paste0('rm ', outdir, '/dosage*'), ignore.stdout = TRUE, ignore.stderr = TRUE)
+            
+        # Check if plot needs to be done
+        if (plt == TRUE){
+            cat('**** Making plots.\n')
+            if (excludeAPOE){
+                res_apoe = res[[1]]
+                res_noapoe = res[[2]]
+                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data)
+                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data)
+            } else {
+                makePlot(res[[1]], res[[2]], "", outdir, snps_data)
+            }
+        }
+        
+        # end message
+        cat('\n\n** Analysis over. Ciao! \n\n')
+    

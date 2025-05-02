@@ -1,0 +1,2 @@
+Predictor	Outcome	Covariates	Beta_PRS	SE_PRS	P_PRS	Model	N_tot	N_missing	Mapping	Model_converged
+PRS	AD	SEX	1.20859942443408e-13	8462.69525876024	1	binomial	3202	0	1 -> 0; 2 -> 1	FALSE
