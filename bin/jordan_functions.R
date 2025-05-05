@@ -150,9 +150,9 @@
             cat('**** Removing APOE SNPs and re-calculating PRS.\n')
             snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
             res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
-            return(list(res, res_noapoe))
+            return(list(res, res_noapoe, dosages))
         } else {
-            return(res)
+            return(res, dosages)
         }
     }
 
@@ -495,6 +495,18 @@
         }
     }
 
+    # Function to check association mode
+    checkAssocMode = function(assoc_mode){
+        # check if the mode is valid
+        if (toupper(assoc_mode) %in% c('PRS', 'SINGLE', 'BOTH')){
+            assoc_mode = ifelse(toupper(assoc_mode) == 'PRS', 'prs', ifelse(toupper(assoc_mode) == 'SINGLE', 'single', 'both'))
+            cat('** Association mode: ', toupper(assoc_mode), '\n')
+            return(assoc_mode)
+        } else {
+            stop('** Association mode not valid. Please use prs, single or both.\n\n', call. = FALSE)
+        }
+    }
+
     # Function to check association file
     checkAssocFile = function(assoc, assoc_var, assoc_cov){
         # check if file exists
@@ -533,7 +545,7 @@
     }
 
     # Function to run association
-    assoc_test = function(prs_df, assoc_info, outdir, suffix){
+    assoc_test = function(prs_df, assoc_info, outdir, suffix, assoc_mode, dosages){
         # extract association info
         assoc_idname = assoc_info[[1]]
         assoc_data = assoc_info[[2]]
@@ -541,16 +553,51 @@
         assoc_covariates = assoc_info[[4]]
         # merge the prs with association info
         prs_df_pheno = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
-        if (nrow(prs_df_pheno) == 0){
+        # check if single-variant association should be done
+        if (assoc_mode %in% c('single', 'both')){
+            # get snp names first
+            snp_names = colnames(dosages)[-1]
+            # if so, merge single-variant data with association info
+            dosages_pheno = merge(dosages, assoc_data, by.x = 'IID', by.y = assoc_idname)
+            # check if the merge was successful for single-variant -- stop only for single mode
+            if (nrow(dosages_pheno) == 0 & assoc_mode == 'single'){
+                stop('** No matching individuals between single-variant and association data.\n\n', call. = FALSE)
+            }
+        }
+        # check if the merge was successful for PRS
+        if (nrow(prs_df_pheno) == 0 & assoc_mode %in% c('prs', 'both')){
             stop('** No matching individuals between PRS and association data.\n\n', call. = FALSE)
         }
+        # check which associations need to be done and do them
+        if (assoc_mode == 'prs'){
+            cat('**** Running association for PRS.\n')
+            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
+            # write the results
+            write.table(assoc_results_prs, paste0(outdir, '/association_results_PRS', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        } else if (assoc_mode == 'single'){
+            cat('**** Running association for single-variant.\n')
+            assoc_results_single = singleVar_assoc(dosages_pheno, assoc_variables, assoc_covariates, suffix, snp_names)
+            # write the results
+            write.table(assoc_results_single, paste0(outdir, '/association_results_single', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        } else {
+            cat('**** Running association for both PRS and single-variant.\n')
+            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
+            assoc_results_single = singleVar_assoc(dosages_pheno, assoc_variables, assoc_covariates, suffix, snp_names)
+            # write the results
+            write.table(assoc_results_prs, paste0(outdir, '/association_results_PRS', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+            write.table(assoc_results_single, paste0(outdir, '/association_results_single', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        }
+    }
+
+    # Function to run association for the PRS
+    prs_assoc = function(prs_df_pheno, assoc_variables, assoc_covariates, suffix){
         # Scale PRS before association
         prs_df_pheno$PRS = scale(prs_df_pheno$PRS)
         # Define container for the results
         assoc_results = data.frame()
         # iterate over the variables
         for (i in 1:nrow(assoc_variables)){
-            cat(paste0('****** Running association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            cat(paste0('****** Running PRS association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
             # get the variable name
             var_name = assoc_variables$variable[i]
             # get the model type
@@ -579,6 +626,58 @@
             # add to the results
             assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(prs_df_pheno), N_missing = sum(is.na(prs_df_pheno[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(prs_df_pheno) - sum(is.na(prs_df_pheno[, var_name])), N_cases = n_cases, N_controls = n_controls, stringsAsFactors = F))
         }
-        # write the results
-        write.table(assoc_results, paste0(outdir, '/association_results', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        return(assoc_results)
+    }
+
+    # Function to run association for the single-variants
+    singleVar_assoc = function(dosages_pheno, assoc_variables, assoc_covariates, suffix, snp_names){
+        # make sure data is a dataframe
+        dosages_pheno = data.frame(dosages_pheno, check.names=F)
+        # Define container for the results
+        assoc_results = data.frame()
+        # iterate over the variables
+        for (i in 1:nrow(assoc_variables)){
+            cat(paste0('****** Running single-variant association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            # get the variable name
+            var_name = assoc_variables$variable[i]
+            # get the model type
+            model_type = assoc_variables$model[i]
+            # get the covariates
+            covar_names = assoc_covariates
+            # get the mapping
+            var_mapping = assoc_variables$mapping[i]
+            # then iterate over the snps
+            for (snp in snp_names){
+                tryCatch({
+                    # update the snp name as otherwise there are bad characters in the name (e.g. /)
+                    colnames(dosages_pheno)[which(colnames(dosages_pheno) == snp)] = 'SNP'
+                    # check if there are covariates
+                    if (length(na.omit(covar_names)) > 0){
+                        # create formula
+                        formula = as.formula(paste0(var_name, ' ~ SNP + ', paste(covar_names, collapse = ' + ')))
+                    } else {
+                        formula = as.formula(paste0(var_name, ' ~ SNP'))
+                    }
+                    # calculate number of cases and controls for logistic regression
+                    if (model_type == 'binomial'){
+                        n_cases = nrow(dosages_pheno[which(dosages_pheno[, var_name] == 1),])
+                        n_controls = nrow(dosages_pheno[which(dosages_pheno[, var_name] == 0),])
+                    } else {
+                        n_cases = NA
+                        n_controls = NA
+                    }
+                    # perform association test
+                    model = suppressWarnings(glm(formula, data = dosages_pheno, family = model_type))
+                    # add to the results
+                    assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(dosages_pheno), N_missing = sum(is.na(dosages_pheno[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(dosages_pheno) - sum(is.na(dosages_pheno[, var_name])), N_cases = n_cases, N_controls = n_controls, stringsAsFactors = F))
+                    # restore the name
+                    colnames(dosages_pheno)[which(colnames(dosages_pheno) == 'SNP')] = snp
+                },
+                error = function(e){
+                    # add to the results
+                    assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = NA, SE_PRS = NA, P_PRS = NA, Model = model_type, N_tot = nrow(dosages_pheno), N_missing = sum(is.na(dosages_pheno[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(dosages_pheno) - sum(is.na(dosages_pheno[, var_name])), N_cases = NA, N_controls = NA, stringsAsFactors = F))
+                })
+            }
+        }
+        return(assoc_results)
     }

@@ -43,7 +43,7 @@
         # Minor allele frequency filter
         parser$add_argument("--maf", help="When present, a filtering based on Minor Allele Frequency (MAF) will be applied. Usage: 0.01 for MAF>1%%.", default = FALSE)
         # Association file
-        parser$add_argument("--assoc", help="When present, association testing will be conducted. By default, the models are pairwise logistic regression models (if categorical variables are detected), and linear regression models (if numerical variables are detected). Please provide a file with labels to associate: the file should contain IID column with the sample names, and the variables to associate. Use argument --assoc-var to define variables to associate and --assoc-cov to define covariates.", default = FALSE)
+        parser$add_argument("--assoc", nargs=2, metavar=c("mode", 'file'), help="When present, association testing will be conducted. By default, PRS association will be conducted (--assoc prs). Alternatively, single variant association can be conducted as well (--assoc single), or both (--assoc both). The models are pairwise logistic regression models (if categorical or binary phenotypes are detected), and linear regression models (if numerical phenotypes are detected). Please provide a file with labels to associate: the file should contain IID column with the sample names, and the variables to associate. Use argument --assoc-var to define variables to associate and --assoc-cov to define covariates.", default = c("prs", FALSE))
         # Association variables
         parser$add_argument("--assoc-var", help="Comma-separated list of the variables to associate.", default = FALSE)
         # Association covariates
@@ -63,7 +63,8 @@
 	    keepDos = args$keepDosage
         addWeight = args$addWeight
         freq = args$freq
-        assoc = args$assoc
+        assoc_mode = args$assoc[1]
+        assoc_file = args$assoc[2]
         assoc_var = args$assoc_var
         assoc_cov = args$assoc_cov
 
@@ -79,7 +80,10 @@
 	    cat("\nKeep dosages: ", keepDos)
         cat("\nAdditional weight: ", addWeight)
         cat("\nCalculate frequency: ", freq)
-        cat("\nAssociation testing: ", assoc)
+        cat("\nAssociation testing: ", assoc_file)
+        if (assoc_file != FALSE){
+            cat("\nAssociation mode: ", assoc_mode)
+        }
         cat("\nAssociation variables: ", assoc_var)
         cat("\nAssociation covariates: ", assoc_cov)
         cat("\nPlot: ", plt, '\n\n')
@@ -103,15 +107,19 @@
         }
     
     # Check association file
-        if (assoc != FALSE){
-            assoc_info = checkAssocFile(assoc, assoc_var, assoc_cov)
+        if (assoc_file != FALSE){
+            cat('\n** Association testing requested. Checking parameters.\n')
+            # Check association mode
+            assoc_mode = checkAssocMode(assoc_mode)
+            # Check association file
+            assoc_info = checkAssocFile(assoc_file, assoc_var, assoc_cov)
         }
 
     # Final check before running
         cat('\n** Inputs are valid. Starting the script.\n\n')
             
         # Add log file with run info to the output folder
-        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov)
+        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov)
             
         # Calculate PRS
         res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq)
@@ -121,23 +129,26 @@
         if (excludeAPOE){
             res_apoe = res[[1]]
             res_noapoe = res[[2]]
+            dosages = res[[3]]
             # Write PRS with and without APOE
             write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir)
             write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir)
         } else {
+            res = res[[1]]
+            dosages = res[[2]]
             write_prs_outputs(res[[1]], res[[2]], snps_data, "", outdir)
         }
 
         # Association testing
-        if (assoc != FALSE){
+        if (assoc_file != FALSE){
             cat('\n**** Association testing.\n')
             if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
-                assoc_test(res_apoe[[1]], assoc_info, outdir, "")
-                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE")
+                assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages)
+                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages)
             } else {
-                assoc_test(res[[1]], assoc_info, outdir, "")
+                assoc_test(res[[1]], assoc_info, outdir, "", assoc_mode, dosages)
             }
         }
 
