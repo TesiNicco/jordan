@@ -19,7 +19,11 @@ jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01
 jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01 --freq --keepDosage --outname prs_dos_maf_freq_assoc --assoc example_assoc_file.txt --assoc-var AD --assoc-cov SEX
 
 # Calculate PRS using a single PLINK data, defining dosages, MAF>1%, request frequencies and single-variant dosages. Perform association analysis of AD and MMSE status with PRS, and SEX, PC1 and PC2 as covariates
-jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01 --freq --keepDosage --outname prs_dos_maf_freq_assocMulti --assoc example_assoc_file.txt --assoc-var AD,MMSE --assoc-cov SEX,PC1,PC2
+jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01 --freq --keepDosage --outname prs_dos_maf_freq_assocMulti --assoc prs example_assoc_file.txt --assoc-var AD,MMSE --assoc-cov SEX,PC1,PC2
+
+# Calculate PRS using a single PLINK data, defining dosages, MAF>1%, request frequencies and single-variant dosages. Perform association analysis of AD and MMSE status with PRS as well as single-variant analysis, and SEX, PC1 and PC2 as covariates
+jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01 --freq --keepDosage --outname prs_dos_maf_freq_assocMulti --assoc both example_assoc_file.txt --assoc-var AD,MMSE --assoc-cov SEX,PC1,PC2
+
 
 
 
