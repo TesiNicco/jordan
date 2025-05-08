@@ -70,6 +70,8 @@
             snps_data = data.table::fread(snps_file, h=T, stringsAsFactors=F, sep="\t")
             # check column names
             if ('CHROM' %in% toupper(colnames(snps_data))){
+                # adjust the column by removing 'chr' if present
+                if (any(grepl('chr', snps_data$CHROM))){ snps_data$CHROM = gsub('chr', '', snps_data$CHROM) }
                 if ('POS' %in% toupper(colnames(snps_data))){
                     if ('EFFECT_ALLELE' %in% toupper(colnames(snps_data))){
                         if ('OTHER_ALLELE' %in% toupper(colnames(snps_data))){
@@ -120,12 +122,39 @@
         return(res)
     }
 
+    # Function to define frequency mode
+    defineFreqMode = function(assoc_file, assoc_info, freq){
+        # check if frequency need to be done
+        if (freq == TRUE){
+            # then check if association need to be done
+            if (assoc_file != FALSE){
+                # extract association info
+                assoc_vars = assoc_info[[3]]
+                # case-control frequency only for binary traits --> model should be binomial
+                if (any(grepl('binomial', assoc_vars))){
+                    # then frequencies need to be calculated
+                    cc_freq_var = paste(assoc_vars$variable[which(assoc_vars$mode == 'binomial')], collapse = ',')
+                    return(cc_freq_var)
+                } else {
+                    # otherwise not
+                    return(FALSE)
+                }
+            } else {
+                return(FALSE)
+            }
+        } else {
+            return(FALSE)
+        }
+    }
+
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info){
+        # decide whether frequencies in cases and controls need to be calculated
+        freq_mode = defineFreqMode(assoc_file, assoc_info, freq)
         # match ids in the plink file and extract dosages/genotypes
         cat('**** Matching SNPs and extracting dosages.\n')
         # Match variants of interest and get the dosages
-        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq)
+        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode)
         dosages = res[[1]]
         mappingSnp = res[[2]]
 	    # if dosages need to be outputted, write them now
@@ -152,7 +181,7 @@
             res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
             return(list(res, res_noapoe, dosages))
         } else {
-            return(res, dosages)
+            return(list(res, dosages))
         }
     }
 
@@ -171,7 +200,7 @@
         }
     }
 
-    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq){
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode){
         # container for all dosages and matching snps and frequencies
         matchingsnps_all = data.frame()
         all_dos = data.frame()
@@ -226,12 +255,16 @@
                 if (genotype_type == 'plink'){
                     if (maf == TRUE){
                         # Extract dosages
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
-                            freq_file = data.table::fread(paste0(outdir, '/frequencies.frq'), h=T, stringsAsFactors=F)
+                            freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Check if case-control frequency should be done as well
+                            if (freq_mode != FALSE){
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                            }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
@@ -242,12 +275,16 @@
                         if (freq == TRUE){
                             system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
-                            freq_file = data.table::fread(paste0(outdir, '/frequencies.frq'), h=T, stringsAsFactors=F)
+                            freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Check if case-control frequency should be done as well
+                            if (freq_mode != FALSE){
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                            }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
                     }
-                } else {
+                } else if (genotype_type == 'plink2'){
                     if (maf == TRUE){
                         # Extract dosages
                         system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
@@ -256,6 +293,10 @@
                             system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Check if case-control frequency should be done as well
+                            if (freq_mode != FALSE){
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                            }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
@@ -264,9 +305,13 @@
                         system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Check if case-control frequency should be done as well
+                            if (freq_mode != FALSE){
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                            }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
@@ -290,9 +335,11 @@
                 system(paste0('rm ', outdir, '/snpsInterest.txt'), ignore.stderr=T, ignore.stdout=T)
                 system(paste0('rm ', outdir, '/dosages.raw'), ignore.stderr=T, ignore.stdout=T)
                 system(paste0('rm ', outdir, '/frequencies.*'), ignore.stderr=T, ignore.stdout=T)
+                system(paste0('rm ', outdir, '/frequen*.afreq'), ignore.stderr=T, ignore.stdout=T)
+                system(paste0('rm ', outdir, '/frequen*.log'), ignore.stderr=T, ignore.stdout=T)
             },
             error = function(e){
-                cat(paste0('****** An error occurred with file ', f, ': Skipping this chromosome.\n'))
+                cat(paste0('****** Skipping file ', basename(f), ' as no variants were found.\n'))
             })
         }
         # Write frequencies
@@ -301,6 +348,48 @@
         }
         res = list(all_dos, matchingsnps_all)
         return(res)
+    }
+
+    # Function to calculate case-control frequencies
+    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info){
+        # split the variables of interest
+        var_interest = unlist(str_split(freq_mode, ','))
+        # iterate over variables
+        for (v in var_interest){
+            # extract phenotypes of interest
+            ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
+            # extract cases and controls based on the mapping stats
+            pairs <- strsplit(assoc_info[[3]]$mapping, ";\\s*")[[1]]
+            kv <- strsplit(pairs, " -> ")
+            # Extract group labels based on RHS values
+            rhs <- sapply(kv, function(x) as.integer(x[2]))
+            lhs <- sapply(kv, function(x) as.integer(x[1]))
+            controls <- lhs[rhs == 0]
+            cases <- lhs[rhs == 1]
+            # get the ids
+            controls_ids = ph_sub[which(ph_sub[, v] == controls), assoc_info[[1]]]
+            cases_ids = ph_sub[which(ph_sub[, v] == cases), assoc_info[[1]]]
+            # write the ids
+            write.table(controls_ids, paste0(outdir, '/tmp_controls.txt'), quote=F, row.names=F, col.names=F)
+            write.table(cases_ids, paste0(outdir, '/tmp_cases.txt'), quote=F, row.names=F, col.names=F)
+            # then calculate frequency
+            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
+            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
+            # read frequencies
+            freq_file_controls = data.table::fread(paste0(outdir, '/frequencies_controls.afreq'), h=T, stringsAsFactors=F)
+            freq_file_cases = data.table::fread(paste0(outdir, '/frequencies_cases.afreq'), h=T, stringsAsFactors=F)
+            # subset of columns
+            freq_file_controls = freq_file_controls[, c('ID', 'ALT_FREQS', 'OBS_CT')]
+            freq_file_cases = freq_file_cases[, c('ID', 'ALT_FREQS', 'OBS_CT')]
+            # rename columns
+            colnames(freq_file_controls) = c('ID', paste0('ALT_FREQS_', v, '_controls'), paste0('ALT_FREQS_', v, '_controls_obs'))
+            colnames(freq_file_cases) = c('ID', paste0('ALT_FREQS_', v, '_cases'), paste0('ALT_FREQS_', v, '_cases_obs'))
+            # combine files
+            freq_cc_merged = merge(freq_file_controls, freq_file_cases, by = 'ID', all = T)
+            # combine with all frequencies
+            freq_file = merge(freq_file, freq_cc_merged, by = 'ID', all = T)
+        }
+        return(freq_file)
     }
 
     # Function to match risk alleles

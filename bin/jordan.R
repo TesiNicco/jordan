@@ -113,6 +113,8 @@
             assoc_mode = checkAssocMode(assoc_mode)
             # Check association file
             assoc_info = checkAssocFile(assoc_file, assoc_var, assoc_cov)
+        } else {
+            assoc_info = FALSE
         }
 
     # Final check before running
@@ -122,7 +124,7 @@
         log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov)
             
         # Calculate PRS
-        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq)
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info)
 
         # Write outputs
         cat('\n**** Writing outputs.\n')
@@ -134,9 +136,9 @@
             write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir)
             write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir)
         } else {
-            res = res[[1]]
+            res_prs = res[[1]]
             dosages = res[[2]]
-            write_prs_outputs(res[[1]], res[[2]], snps_data, "", outdir)
+            write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir)
         }
 
         # Association testing
@@ -148,7 +150,7 @@
                 assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages)
                 assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages)
             } else {
-                assoc_test(res[[1]], assoc_info, outdir, "", assoc_mode, dosages)
+                assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages)
             }
         }
 
