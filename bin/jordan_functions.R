@@ -263,7 +263,7 @@
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -273,12 +273,12 @@
                         system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -295,7 +295,7 @@
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -310,7 +310,7 @@
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -351,7 +351,7 @@
     }
 
     # Function to calculate case-control frequencies
-    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info){
+    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info, genotype_type){
         # split the variables of interest
         var_interest = unlist(str_split(freq_mode, ','))
         # iterate over variables
@@ -359,22 +359,24 @@
             # extract phenotypes of interest
             ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
             # extract cases and controls based on the mapping stats
-            pairs <- strsplit(assoc_info[[3]]$mapping, ";\\s*")[[1]]
-            kv <- strsplit(pairs, " -> ")
+            #pairs <- strsplit(assoc_info[[3]]$mapping, ";\\s*")[[1]]
+            #kv <- strsplit(pairs, " -> ")
             # Extract group labels based on RHS values
-            rhs <- sapply(kv, function(x) as.integer(x[2]))
-            lhs <- sapply(kv, function(x) as.integer(x[1]))
-            controls <- lhs[rhs == 0]
-            cases <- lhs[rhs == 1]
+            #rhs <- sapply(kv, function(x) as.integer(x[2]))
+            #lhs <- sapply(kv, function(x) as.integer(x[1]))
+            #controls <- lhs[rhs == 0]
+            #cases <- lhs[rhs == 1]
             # get the ids
-            controls_ids = ph_sub[which(ph_sub[, v] == controls), assoc_info[[1]]]
-            cases_ids = ph_sub[which(ph_sub[, v] == cases), assoc_info[[1]]]
+            controls_ids = ph_sub[which(ph_sub[, v] == 0), assoc_info[[1]]]
+            cases_ids = ph_sub[which(ph_sub[, v] == 1), assoc_info[[1]]]
             # write the ids
             write.table(controls_ids, paste0(outdir, '/tmp_controls.txt'), quote=F, row.names=F, col.names=F)
             write.table(cases_ids, paste0(outdir, '/tmp_cases.txt'), quote=F, row.names=F, col.names=F)
+            # define input file based on the type of genotype file
+            input_file = ifelse(genotype_type == 'plink', paste0('--bfile ', str_replace_all(f, '.bim', '')), paste0('--pfile ', str_replace_all(f, '.pvar', '')))
             # then calculate frequency
-            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
-            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
+            system(paste0('plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
+            system(paste0('plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
             # read frequencies
             freq_file_controls = data.table::fread(paste0(outdir, '/frequencies_controls.afreq'), h=T, stringsAsFactors=F)
             freq_file_cases = data.table::fread(paste0(outdir, '/frequencies_cases.afreq'), h=T, stringsAsFactors=F)
