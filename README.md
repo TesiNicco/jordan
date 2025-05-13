@@ -18,7 +18,10 @@ In case these are not installed, you can install with the following code:
 install.packages(c("argparse", "data.table", "stringr", "ggplot2"))
 ```
 In addition to R packages, you need to have [PLINK2](https://www.cog-genomics.org/plink/2.0/) and [PLINK](https://www.cog-genomics.org/plink/1.9/) installed in your system.  
-If all this is OK, then you should be able to run the script.  
+If all this is OK, then you should be able to run the script. These are also provided in this package. 
+
+## Application
+We provide also an application wrapper around `jordan.R`, which allows the user to run the script
 
 ## How to use
 By running:  

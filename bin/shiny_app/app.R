@@ -1,16 +1,32 @@
-# Libraries
-library(data.table)
-library(shiny)
-library(stringr)
-library(tools)
-library(shinyjs)
-library(processx)
+# Libraries - suppress startup messages
+suppressPackageStartupMessages({
+  library(data.table)
+  library(shiny)
+  library(stringr)
+  library(tools)
+  library(shinyjs)
+  library(processx)
+})
 
 # Define UI
 ui <- fluidPage(
+  clss = "container-fluid",
   useShinyjs(),
 
   tags$style(HTML("
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container-fluid {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
     .spinner {
       border: 4px solid #f3f3f3;
       border-top: 4px solid #007BFF;
@@ -21,14 +37,41 @@ ui <- fluidPage(
       display: inline-block;
       margin-right: 8px;
     }
+
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    .image-container-foot {
+      background-color: #ffffff;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 12px 0;
+      border-top: 1px solid #ccc;
+      margin-top: auto;
+      width: 100%;
+    }
+
+    .image-container-foot img {
+      height: 80px;
+      max-width: 30%;
+      object-fit: contain;
+    }
   ")),
 
-  tags$head(tags$style(HTML('hr { border-top: 1px solid #999 !important; }
-    .valid-ok { color: darkgreen; font-weight: bold; font-size: 18px; }
+# Top logo or image banner
+  tags$div(
+    style = "width: 100%; overflow: hidden; margin-bottom: 20px;",
+    tags$img(
+      src = "images/dna.png",
+      style = "width: 100%; height: auto; display: block;",
+      alt = "Top Banner"
+    )
+  ),
+
+  tags$head(tags$style(HTML('.valid-ok { color: darkgreen; font-weight: bold; font-size: 18px; }
     .valid-fail { color: red; font-weight: bold; font-size: 18px; }'))),
 
   titlePanel("Jordan: Command-line Wrapper"),
@@ -156,13 +199,24 @@ ui <- fluidPage(
       uiOutput("run_button_ui"),
       uiOutput("spinner_container"),
       tags$div(style = "height: 10px;"),
-      verbatimTextOutput("log_output")
+      uiOutput("output_tabs")
+      # Add vertical space
+
     )
-  )
+  ),
+
+  tags$div(class = "image-container-foot",
+  tags$img(src = "images/amstUMC.jpg", alt = "ams"),
+  tags$img(src = "images/tudelft1.png", alt = "tud"),
+  tags$img(src = "images/github.png", alt = "gith"))
 )
 
 # Define server logic
 server <- function(input, output, session) {
+  # Directory to hold PDF plots (served via www/)
+  plot_dir <- file.path("www", "tmp_plots")
+  dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+  
   # Derive the path to the Jordan binary
   get_script_dir <- function() {
     cmdArgs <- commandArgs(trailingOnly = FALSE)
@@ -235,6 +289,16 @@ server <- function(input, output, session) {
 
   output_file_path <- reactiveVal()
   log_file_path <- reactiveVal()
+  prs_results_path <- reactiveVal()
+  freq_results_path <- reactiveVal()
+  assoc_prs_results_path <- reactiveVal()
+  assoc_snp_results_path <- reactiveVal()
+  log_lines <- character(0)
+  proc <- NULL  # to store the running process
+  proc_trigger <- reactiveVal(FALSE)  # this will signal polling start
+  check_proc = reactiveTimer(500)
+  proc_done = reactiveVal(FALSE)
+  plot_index <- reactiveVal(1)
 
   output$run_button_ui <- renderUI({
     fluidRow(
@@ -285,6 +349,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$run_btn, {
     shinyjs::disable("run_btn")
+    log_lines <<- character(0)
 
     output$spinner_container <- renderUI({
       tags$div(class = "spinner", title = "Running...", style = "margin-top: 6px;")
@@ -292,45 +357,147 @@ server <- function(input, output, session) {
 
     output$log_output <- renderText({ "Running Jordan...\n" })
 
-    # Prepare the command
     cmd_info <- generate_cmd()
     jordan_cmd <- cmd_info$cmd
 
-    # Start the external process
-    proc <- processx::process$new(
-      command = "bash",  # assume Jordan is launched via a bash call
+    # Start the process and assign to global proc
+    proc <<- processx::process$new(
+      command = "bash",
       args = c("-c", jordan_cmd),
       stdout = "|", stderr = "|"
     )
 
-    # Live log output
-    log_lines <- character(0)
+    # Reset output paths
+    output_file_path(paste0(input$out_path, "/output.vcf"))
+    log_file_path(paste0(input$out_path, "/output.log"))
+    prs_results_path(file.path(input$out_path, "PRS_table.txt"))
+    freq_results_path(file.path(input$out_path, "frequencies.txt"))
+    assoc_prs_results_path(file.path(input$out_path, "association_results_PRS.txt"))
+    assoc_snp_results_path(file.path(input$out_path, "association_results_single.txt"))
 
-    observe({
-      invalidateLater(500, session)
-      if (proc$is_alive()) {
-        new_output <- proc$read_output_lines()
-        new_error  <- proc$read_error_lines()
-        log_lines <<- c(log_lines, new_output, new_error)
-        output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
-      } else {
-        # Process finished
-        new_output <- proc$read_output_lines()
-        new_error  <- proc$read_error_lines()
-        log_lines <<- c(log_lines, new_output, new_error)
+    # Trigger polling observer
+    proc_done(FALSE)
+    proc_trigger(TRUE)
+    plot_index(1)  # Reset slideshow to first plot
+  })
 
-        output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
+  plot_files <- reactive({
+    req(proc_done())
+    list.files(plot_dir, pattern = "\\.pdf$", full.names = FALSE)
+  })
 
-        output$spinner_container <- renderUI({ NULL })
-        shinyjs::enable("run_btn")
+  output$output_tabs <- renderUI({
+    req(proc_done())  # only re-render if process was triggered
 
-        output_file_path(paste0(cmd_info$prefix, ".vcf"))
-        log_file_path(paste0(cmd_info$prefix, ".log"))
+    tabs <- list(
+      tabPanel("Log", verbatimTextOutput("log_output")),
+      tabPanel("PRS", 
+        htmlOutput("results_output"),
+        div(
+          style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+          tableOutput("prs_table")
+        )
+      )
+    )
 
-        # Save full log
-        writeLines(log_lines, paste0(cmd_info$prefix, ".log"))
+    if (input$freq) {
+      tabs <- append(tabs, list(
+        tabPanel("Freq", 
+          htmlOutput("freq_output"),
+          div(
+            style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+            tableOutput("freq_table")
+          )
+        )
+      ))
+    }
+
+    if (input$plot) {
+      tabs <- append(tabs, list(
+        tabPanel("Plot",
+          uiOutput("plot_controls"),
+          uiOutput("pdf_viewer")
+        )
+      ))
+    }
+
+    if (input$assoc_analysis) {
+      if (input$test_type == "PRS") {
+        tabs <- append(tabs, list(
+          tabPanel("PRS-association", 
+            htmlOutput("assoc_prs_output"),
+            div(
+              style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+              tableOutput("assoc_prs_table")
+            )
+          )
+        ))
+      } else if (input$test_type == "SNP") {
+        tabs <- append(tabs, list(
+          tabPanel("SNP-association", 
+            htmlOutput("assoc_snp_output"),
+            div(
+              style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+              tableOutput("assoc_snp_table")
+            )
+          )
+        ))
+      } else if (input$test_type == "Both") {
+        tabs <- append(tabs, list(
+          tabPanel("PRS-association", 
+            htmlOutput("assoc_prs_output"),
+            div(
+              style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+              tableOutput("assoc_prs_table")
+            )
+          ),
+          tabPanel("SNP-association", 
+            htmlOutput("assoc_snp_output"),
+            div(
+              style = "max-height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 5px;",
+              tableOutput("assoc_snp_table")
+            )
+          )
+        ))
       }
-    })
+    }
+
+    do.call(tabsetPanel, c(list(id = "results_tabs"), tabs))
+  })
+
+  observe({
+    req(proc_trigger())
+    invalidateLater(500)
+
+    if (!is.null(proc) && proc$is_alive()) {
+      new_output <- proc$read_output_lines()
+      new_error <- proc$read_error_lines()
+      log_lines <<- c(log_lines, new_output, new_error)
+      output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
+    } else if (!is.null(proc)) {
+      new_output <- proc$read_output_lines()
+      new_error  <- proc$read_error_lines()
+      log_lines <<- c(log_lines, new_output, new_error)
+
+      output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
+      writeLines(log_lines, log_file_path())
+
+      output$spinner_container <- renderUI({ NULL })
+      shinyjs::enable("run_btn")
+
+      # 🧹 Clear and recopy PDFs here
+      old_pdfs <- list.files(plot_dir, pattern = "\\.pdf$", full.names = TRUE)
+      file.remove(old_pdfs)
+
+      new_pdfs <- list.files(input$out_path, pattern = "\\.pdf$", full.names = TRUE)
+      file.copy(new_pdfs, plot_dir, overwrite = TRUE)
+
+      # Reset
+      plot_index(1)
+      proc_trigger(FALSE)
+      proc_done(TRUE)
+      proc <<- NULL
+    }
   })
 
   output$download_vcf <- downloadHandler(
@@ -349,6 +516,10 @@ server <- function(input, output, session) {
     fname <- basename(fpath)
     ext <- tolower(file_ext(fname))
     base <- file_path_sans_ext(fname)
+
+    if (!file.exists(fpath)) {
+      return(HTML(paste(fname, "-- Incorrect path. File does NOT exist", "<span class='valid-fail'>&#10007;</span>")))
+    }
 
     dtype <- data_type()
 
@@ -382,7 +553,7 @@ server <- function(input, output, session) {
     exists <- file.exists(fpath)
 
     if (!exists) {
-      return(HTML(paste(fname, "-- incorrect path -- file type: SNP list", "<span class='valid-fail'>&#10007;</span>")))
+      return(HTML(paste(fname, "-- Incorrect path -- file type: SNP list", "<span class='valid-fail'>&#10007;</span>")))
     }
 
     cols <- tryCatch({
@@ -418,7 +589,7 @@ server <- function(input, output, session) {
     exists <- file.exists(fpath)
 
     if (!exists) {
-      return(HTML(paste(fname, "-- incorrect path -- file type: phenotype data", "<span class='valid-fail'>&#10007;</span>")))
+      return(HTML(paste(fname, "-- Incorrect path -- file type: phenotype data", "<span class='valid-fail'>&#10007;</span>")))
     }
 
     valid <- "<span class='valid-ok'>&#10003;</span>"
@@ -447,7 +618,7 @@ server <- function(input, output, session) {
     } else if (parent_exists) {
       paste(out_path, "-- will be created")
     } else {
-      paste(out_path, "-- parent directory missing")
+      paste(out_path, "-- Incorrect path. Parent directory missing")
     }
 
     icon <- if (exists || parent_exists) {
@@ -457,6 +628,97 @@ server <- function(input, output, session) {
     }
 
     HTML(paste(msg, icon))
+  })
+
+  output$results_output <- renderUI({
+    invalidateLater(1000, session)
+    prs_path <- prs_results_path()  
+    if (!file.exists(prs_path)) {
+      return(HTML("<span class='valid-fail'>&#10007;</span> <b>PRS_table.txt</b> not found in the output directory."))
+    }
+    HTML("<h5>PRS Table</h5>")
+  })
+  output$prs_table <- renderTable({
+    invalidateLater(1000, session)
+    req(file.exists(prs_results_path()))
+    fread(prs_results_path())
+  }, striped = TRUE, bordered = TRUE)
+
+  output$freq_output <- renderUI({
+    invalidateLater(1000, session)
+    freq_path <- freq_results_path()
+    if (!file.exists(freq_path)) {
+      return(HTML("<span class='valid-fail'>&#10007;</span> <b>frequencies.txt</b> not found in the output directory."))
+    }
+    HTML("<h5>Frequencies Table</h5>")
+  })
+  output$freq_table <- renderTable({
+    invalidateLater(1000, session)
+    req(file.exists(freq_results_path()))
+    fread(freq_results_path())
+  }, striped = TRUE, bordered = TRUE)
+
+  output$assoc_prs_output <- renderUI({
+    invalidateLater(1000, session)
+    assoc_prs_path <- assoc_prs_results_path()
+    if (!file.exists(assoc_prs_path)) {
+      return(HTML("<span class='valid-fail'>&#10007;</span> <b>association_results_PRS.txt</b> not found in the output directory."))
+    }
+    HTML("<h5>Association Results (PRS)</h5>")
+  })
+  output$assoc_prs_table <- renderTable({
+    invalidateLater(1000, session)
+    req(file.exists(assoc_prs_results_path()))
+    fread(assoc_prs_results_path())
+  }, striped = TRUE, bordered = TRUE)
+
+  output$assoc_snp_output <- renderUI({
+    invalidateLater(1000, session)
+    assoc_snp_path <- assoc_snp_results_path()
+    if (!file.exists(assoc_snp_path)) {
+      return(HTML("<span class='valid-fail'>&#10007;</span> <b>association_results_single.txt</b> not found in the output directory."))
+    }
+    HTML("<h5>Association Results (SNP)</h5>")
+  })
+  output$assoc_snp_table <- renderTable({
+    invalidateLater(1000, session)
+    req(file.exists(assoc_snp_results_path()))
+    fread(assoc_snp_results_path())
+  }, striped = TRUE, bordered = TRUE)
+
+  output$plot_controls <- renderUI({
+    files <- plot_files()
+    if (length(files) == 0) return("No plots available.")
+
+    tagList(
+      actionButton("prev_plot", "Previous"),
+      span(paste("Plot", plot_index(), "of", length(files))),
+      actionButton("next_plot", "Next")
+    )
+  })
+
+  output$pdf_viewer <- renderUI({
+    files <- plot_files()
+    if (length(files) == 0) return(NULL)
+    idx <- plot_index()
+    if (idx > length(files)) idx <- length(files)
+    file_to_show <- files[[idx]]
+
+    tagList(
+      tags$embed(
+        src = file.path("tmp_plots", file_to_show),
+        type = "application/pdf",
+        width = "100%",
+        height = "800px"
+      ), tags$div(style = "height: 30px;"))
+  })
+
+  observeEvent(input$prev_plot, {
+    if (plot_index() > 1) plot_index(plot_index() - 1)
+  })
+
+  observeEvent(input$next_plot, {
+    if (plot_index() < length(plot_files())) plot_index(plot_index() + 1)
   })
 }
 

@@ -3,6 +3,7 @@
     library(data.table)
     library(stringr)
     library(ggplot2)
+    library(ggExtra)
 
 # Functions
     # Function to check output file
@@ -24,7 +25,7 @@
     }
 
     # Function to check input genotype file
-    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run){
+    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run, script_path){
         # check if file is a vcf/bcf
         if (file.exists(genotype_file) && (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz'))){
             # check if the file is a vcf/bcf
@@ -32,10 +33,10 @@
             # vcf file
             if (isdosage == TRUE){
                 cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0('plink2 --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0(script_path, '/plink2 --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             } else {
                 cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0('plink2 --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0(script_path, '/plink2 --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             }
             data_path = paste0(outdir, '/tmp.pvar')
             res = list(data_path, 'plink2')
@@ -148,15 +149,16 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path){
         # decide whether frequencies in cases and controls need to be calculated
         freq_mode = defineFreqMode(assoc_file, assoc_info, freq)
         # match ids in the plink file and extract dosages/genotypes
         cat('**** Matching SNPs and extracting dosages.\n')
         # Match variants of interest and get the dosages
-        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode)
+        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path)
         dosages = res[[1]]
         mappingSnp = res[[2]]
+        all_freq = res[[3]]
 	    # if dosages need to be outputted, write them now
 	    if (keepDos == TRUE){
 		    write.table(dosages, paste0(outdir, '/chrAll_dosages.txt'), quote=F, row.names=F, sep="\t")
@@ -179,9 +181,9 @@
             cat('**** Removing APOE SNPs and re-calculating PRS.\n')
             snps_data_noAPOE = snps_data[which(!(snps_data$POS %in% c(44908684, 44908822))),]
             res_noapoe = prs(snps_data_noAPOE, dosages, mappingSnp, addWeight)
-            return(list(res, res_noapoe, dosages))
+            return(list(res, res_noapoe, dosages, all_freq))
         } else {
-            return(list(res, dosages))
+            return(list(res, dosages, all_freq))
         }
     }
 
@@ -200,7 +202,7 @@
         }
     }
 
-    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode){
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path){
         # container for all dosages and matching snps and frequencies
         matchingsnps_all = data.frame()
         all_dos = data.frame()
@@ -255,30 +257,30 @@
                 if (genotype_type == 'plink'){
                     if (maf == TRUE){
                         # Extract dosages
-                        system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
                     } else {
                         # Extract dosages
-                        system(paste0('plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(script_path, '/plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -287,15 +289,15 @@
                 } else if (genotype_type == 'plink2'){
                     if (maf == TRUE){
                         # Extract dosages
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(script_path, '/plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(script_path, '/plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -305,12 +307,12 @@
                         system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -346,12 +348,12 @@
         if (nrow(all_freq) > 0){
             write.table(all_freq, paste0(outdir, '/frequencies.txt'), quote=F, row.names=F, sep="\t")
         }
-        res = list(all_dos, matchingsnps_all)
+        res = list(all_dos, matchingsnps_all, all_freq)
         return(res)
     }
 
     # Function to calculate case-control frequencies
-    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info, genotype_type){
+    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path){
         # split the variables of interest
         var_interest = unlist(str_split(freq_mode, ','))
         # iterate over variables
@@ -375,8 +377,8 @@
             # define input file based on the type of genotype file
             input_file = ifelse(genotype_type == 'plink', paste0('--bfile ', str_replace_all(f, '.bim', '')), paste0('--pfile ', str_replace_all(f, '.pvar', '')))
             # then calculate frequency
-            system(paste0('plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
-            system(paste0('plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
+            system(paste0(script_path, '/plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq cols=+pos --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
+            system(paste0(script_path, '/plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq cols=+pos --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
             # read frequencies
             freq_file_controls = data.table::fread(paste0(outdir, '/frequencies_controls.afreq'), h=T, stringsAsFactors=F)
             freq_file_cases = data.table::fread(paste0(outdir, '/frequencies_cases.afreq'), h=T, stringsAsFactors=F)
@@ -442,7 +444,7 @@
     }
 
     # Function to draw plot
-    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data){
+    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data, assoc_info, all_freq, freq, assoc_file){
         # define title of the plots
         density_title = ifelse(suffix == "", paste0('PRS based on ', nrow(included_snps), ' SNPs'), paste0('PRS based on ', nrow(included_snps), ' SNPs (APOE excluded)'))
         snps_title = ifelse(suffix == "", 'Beta of SNPs', 'Beta of SNPs (APOE excluded)')
@@ -451,6 +453,55 @@
         pdf(paste0(outdir, '/PRS_density', suffix, '.pdf'), height = 7, width = 7)
         print(plt_density)
         invisible(dev.off())
+
+        # if assoc_info is not FALSE and there is a binary trait, then plot the PRS vs the binary trait
+        if (assoc_file != FALSE){
+            # check if the trait is binary
+            if (any(grepl('binomial', assoc_info[[3]]$model))){
+                # get the variable of interest
+                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
+                # iterate over the variables of interest
+                for (v in var_interest){
+                    # get the phenotype of interest
+                    ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
+                    # change the value in the v column from 0/1 based on the mapping
+                    pairs <- strsplit(assoc_info[[3]][which(assoc_info[[3]]$variable == v), "mapping"], ";\\s*")[[1]]
+                    kv <- strsplit(pairs, " -> ")
+                    # Change the values
+                    tmp1 = ph_sub[which(ph_sub[, v] == kv[[1]][2]), ]
+                    tmp2 = ph_sub[which(ph_sub[, v] == kv[[2]][2]), ]
+                    tmp1[which(tmp1[, v] == kv[[1]][2]), v] = kv[[1]][1]
+                    tmp2[which(tmp2[, v] == kv[[2]][2]), v] = kv[[2]][1]
+                    ph_sub = rbind(tmp1, tmp2)
+                    # merge with the prs_df
+                    ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                    # plot
+                    plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", fill = v)) + geom_density(alpha = 0.6) + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                    pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
+                    print(plt_pheno)
+                    invisible(dev.off())
+                }
+            }
+            if (any(grepl('gaussian', assoc_info[[3]]$model))){
+                # get the variable of interest
+                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'gaussian')]
+                # iterate over the variables of interest
+                for (v in var_interest){
+                    # get the phenotype of interest
+                    ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
+                    # merge with the prs_df
+                    ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                    # plot
+                    plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab('Polygenic Risk Score') + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                    # add marginal density plots using ggMarginal
+                    plt_pheno = ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5)
+                    pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
+                    print(plt_pheno)
+                    invisible(dev.off())
+                }
+            }
+        }
+
         # plot snps
         # add the missing snps to the included snps
         # construct ID fields
@@ -477,6 +528,89 @@
         pdf(paste0(outdir, '/PRS_SNPs', suffix, '.pdf'), height = plot_height, width = 7)
         print(plt_snps)
         invisible(dev.off())
+
+        # plot frequencies if these were calculated
+        if (freq & nrow(all_freq) > 0){
+            # check if association labels are present
+            if (assoc_file != FALSE){
+                # get the variable of interest
+                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
+                # iterate over the variables of interest
+                for (v in var_interest){
+                    # get data by grepping v _controls or v_cases and end line
+                    v_controls = paste0(v, '_controls$')
+                    v_cases = paste0(v, '_cases$')
+                    # get the columns of interest
+                    v_controls_cols = colnames(all_freq)[grep(v_controls, colnames(all_freq))]
+                    v_cases_cols = colnames(all_freq)[grep(v_cases, colnames(all_freq))]
+                    # get the variable of interest
+                    all_freq = data.frame(all_freq, check.names=F)
+                    ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', v_controls_cols, v_cases_cols)]
+                    # rename columns
+                    colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', paste0(v, '_controls'), paste0(v, '_cases'))
+                    # check if frequency columns are < 0.5 for both v_controls and v_cases, for each line
+                    ph_sub$MINOR_ALLELE = ph_sub$ALT
+                    ph_sub[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5)]
+                    ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')]
+                    ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')]
+                    # define final_ID as ID (MINOR_ALLELE)
+                    ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
+                    # Add risk/protective allele
+                    ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
+                    ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
+                    ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
+                    # reshape to long format -- the AD_controls and AD_cases columns should be combined
+                    # define the ID columns
+                    id_cols <- c('SNPID', 'ID', 'SNP', 'CHROM', 'POS', 'REF', 'ALT', 'MINOR_ALLELE', 'EFFECT_ALLELE', 'BETA', 'Effect')
+                    # create long format
+                    frequencies_long <- reshape(ph_sub_info, varying = setdiff(names(ph_sub_info), id_cols), v.names = "MAF", timevar = "Group", times = setdiff(names(ph_sub_info), id_cols), direction = "long")
+                    # reset rownames if needed
+                    rownames(frequencies_long) <- NULL
+                    # sort by frequency
+                    frequencies_long = frequencies_long[order(frequencies_long$MAF),]
+                    # set the order of the SNPs
+                    frequencies_long$SNP = factor(frequencies_long$SNP, levels = unique(frequencies_long$SNP))
+                    # plot
+                    p4 = ggplot(frequencies_long, aes(x=SNP, y=MAF, color=Group, shape=Group)) + geom_point(size = 3, stat = 'identity') + labs(title="Case/Control Frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(frequencies_long$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16), plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)), shape = guide_legend(override.aes = list(size = 4)))
+                    # set the width of the plot dynamically
+                    base_width = 5
+                    width_per_snp = 0.125
+                    plot_width = max(5, min(60, base_width + nrow(frequencies_long) * width_per_snp))
+                    pdf(paste0(outdir, '/PRS_Frequencies_', v, '.pdf'), height = 7, width = plot_width)
+                    print(p4)
+                    invisible(dev.off())
+                }
+            } else {
+                # subset of data
+                all_freq = data.frame(all_freq, check.names=F)
+                ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')]
+                # rename columns
+                colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')
+                # add minor allele
+                ph_sub$MINOR_ALLELE = ph_sub$ALT
+                ph_sub[which(ph_sub$ALT_FREQS > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub$ALT_FREQS > 0.5)]
+                ph_sub$MAF = ifelse(ph_sub$ALT_FREQS > 0.5, 1 - ph_sub$ALT_FREQS, ph_sub$ALT_FREQS)
+                # define final_ID as ID (MINOR_ALLELE)
+                ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
+                # Add risk/protective allele
+                ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
+                ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
+                ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
+                # sort
+                ph_sub_info = ph_sub_info[order(ph_sub_info$MAF),]
+                # set the order of the SNPs
+                ph_sub_info$SNP = factor(ph_sub_info$SNP, levels = unique(ph_sub_info$SNP))
+                # plot
+                p4 = ggplot(data = ph_sub_info, aes(x=SNP, y=MAF)) + geom_point(size = 3, col = 'coral') + labs(title="All samples frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(ph_sub_info$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none', plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)))
+                # set the width of the plot dynamically
+                base_width = 5
+                width_per_snp = 0.15
+                plot_width = max(5, min(60, base_width + nrow(ph_sub_info) * width_per_snp))
+                pdf(paste0(outdir, '/PRS_Frequencies.pdf'), height = 7, width = plot_width)
+                print(p4)
+                invisible(dev.off())
+            } 
+        }
     }
 
     # Function to write log file

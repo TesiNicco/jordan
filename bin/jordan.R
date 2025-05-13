@@ -93,7 +93,7 @@
         outdir = checkOutputFile(outfile)
 
     # Check input genotype file
-        res = checkGenoFile(genotype_file, outdir, dosage, multiple)
+        res = checkGenoFile(genotype_file, outdir, dosage, multiple, script_path)
         genotype_path = res[[1]]
         genotype_type = res[[2]]
 
@@ -124,7 +124,7 @@
         log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov)
             
         # Calculate PRS
-        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info)
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path)
 
         # Write outputs
         cat('\n**** Writing outputs.\n')
@@ -132,12 +132,14 @@
             res_apoe = res[[1]]
             res_noapoe = res[[2]]
             dosages = res[[3]]
+            all_freq = res[[4]]
             # Write PRS with and without APOE
             write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir)
             write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir)
         } else {
             res_prs = res[[1]]
             dosages = res[[2]]
+            all_freq = res[[3]]
             write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir)
         }
 
@@ -165,10 +167,15 @@
             if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
-                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data)
-                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data)
+                all_freq = res[[4]]
+                # Make density plots
+                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
+                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
             } else {
-                makePlot(res[[1]], res[[2]], "", outdir, snps_data)
+                res_prs = res[[1]]
+                all_freq = res[[3]]
+                # Make density plots
+                makePlot(res_prs[[1]], res_prs[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
             }
         }
         

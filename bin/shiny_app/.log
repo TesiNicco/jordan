@@ -3,30 +3,21 @@ Genotype file:  /project/holstegelab/Share/nicco/jordan/example_data/example_dat
 Multiple files:  FALSE
 SNPs file:  /project/holstegelab/Share/nicco/jordan/example_data/AD_snps.txt
 Output file:  /project/holstegelab/Share/nicco/jordan/example_data/test
-Dosage:  FALSE
+Dosage:  TRUE
 MAF:  FALSE
 With and Without APOE:  FALSE
 Use direct effects (Risk and Protective):  FALSE
 Keep dosages:  FALSE
 Additional weight:  FALSE
 Calculate frequency:  FALSE
-Association testing:  /project/holstegelab/Share/nicco/jordan/example_data/example_assoc_file.txt
-Association mode:  PRS
-Association variables:  AD,MMSE,AD_CAT
-Association covariates:  SEX,PC1,PC2,PC3
+Association testing:  FALSE
+Association variables:  FALSE
+Association covariates:  FALSE
 Plot:  FALSE 
 
 ** Output directory is valid and exists.
 ** PLINK file found.
 ** Required columns found
-
-** Association testing requested. Checking parameters.
-** Association mode:  PRS 
-** Association data file found.
-**** Variable  AD : numeric with 2 values. Logistic regression will be used.
-**** Variable  MMSE : numeric with more than 2 values. Linear regression will be used.
-**** Variable  AD_CAT : categorical with 2 values. Logistic regression will be used.
-**** Covariates found:  SEX, PC1, PC2, PC3 
 
 ** Inputs are valid. Starting the script.
 
@@ -35,12 +26,6 @@ Plot:  FALSE
 **** Calculating PRS.
 
 **** Writing outputs.
-
-**** Association testing.
-**** Running association for PRS.
-****** Running PRS association for variable: AD 
-****** Running PRS association for variable: MMSE 
-****** Running PRS association for variable: AD_CAT 
 
 **** Cleaning.
 

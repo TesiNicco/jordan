@@ -1,0 +1,35 @@
+
+Genotype file:  /project/holstegelab/Share/nicco/jordan/example_data/example_data_plink
+Multiple files:  FALSE
+SNPs file:  /project/holstegelab/Share/nicco/jordan/example_data/AD_snps.txt
+Output file:  /project/holstegelab/Share/nicco/jordan/example_data/test
+Dosage:  FALSE
+MAF:  FALSE
+With and Without APOE:  FALSE
+Use direct effects (Risk and Protective):  FALSE
+Keep dosages:  FALSE
+Additional weight:  FALSE
+Calculate frequency:  FALSE
+Association testing:  FALSE
+Association variables:  FALSE
+Association covariates:  FALSE
+Plot:  TRUE 
+
+** Output directory is valid and exists.
+** PLINK file found.
+** Required columns found
+
+** Inputs are valid. Starting the script.
+
+**** Matching SNPs and extracting dosages.
+
+**** Calculating PRS.
+
+**** Writing outputs.
+
+**** Cleaning.
+**** Making plots.
+
+
+** Analysis over. Ciao! 
+
