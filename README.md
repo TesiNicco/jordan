@@ -1,5 +1,6 @@
 # jordan
-R script to calculate Polygenic Risk Score from genotype data, do PRS as well as single-variant associations, and plot.
+This repository provides a command-line R script and a Shiny-based graphical interface to (i) compute Polygenic Risk Scores (PRS) from genotype data (VCF/BCF/PLINK formats), (ii) perform single-variant association testing, and (iii) generate comprehensive diagnostic and association plots.  
+The R script (`jordan.R`) can be executed standalone via the command line, while the Shiny app (`shiny_app/`) offers a user-friendly interface that internally wraps and executes the same script using dynamic input.  
 
 ## Install
 Clone the repository locally:
@@ -20,10 +21,13 @@ install.packages(c("argparse", "data.table", "stringr", "ggplot2"))
 In addition to R packages, you need to have [PLINK2](https://www.cog-genomics.org/plink/2.0/) and [PLINK](https://www.cog-genomics.org/plink/1.9/) installed in your system.  
 If all this is OK, then you should be able to run the script. These are also provided in this package. 
 
-## Application
-We provide also an application wrapper around `jordan.R`, which allows the user to run the script
+## Shiny application
+We provide also an application wrapper around `jordan.R`, which allows the user to run the script with a graphic interface using dynamic input. In order to use the application, few additional `R` packages need to be installed: `shiny`, `tools`, `shinyjs`, `processx`. These can be installed with the following command:
+```console
+install.packages(c("argparse", "data.table", "stringr", "ggplot2", "shiny", "tools", "shinyjs", "processx"))
+```
 
-## How to use
+## How to use -- jordan command line tool
 By running:  
 ```console
 ./bin/jordan.R -h
@@ -88,7 +92,17 @@ jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01
 ```  
 
 ## Test
-To test everything is allright, you can use the following script alongside the example datasets provided in the repository. The example data will make a PRS from 85 SNPs associated with Alzheimer's Disease in individuals from the 1000Genome Project.  
+To test everything is allright, you can use the following script alongside the example datasets provided in the repository. The example data will make a PRS from 85 SNPs associated with Alzheimer's Disease in individuals from the 1000Genome Project. 
+
+## Application wrapper
+The application wrapper can be run using the following code from the `shiny_app/` folder:
+```console
+Rscript app.R
+```  
+Alternatively, the app can be run from anywhere in your system with the following code:
+```console
+Rscript -e "shiny::runApp('/path/to/jordan/bin/shiny_app/app.R', port = 4525, host = '127.0.0.1')"
+```  
 
 ## Contact
 For comments, feedback, or questions, feel free to reach me at [n.tesi@amsterdamumc.nl](mailto:n.tesi@amsterdamumc.nl) or open an issue.
