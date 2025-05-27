@@ -45,7 +45,7 @@
             cat('** PLINK2 file found.\n')
             # check other chromosomes if present
             if (multiple == TRUE){
-                all_files = system(paste0('ls ', dirname(genotype_file), '/*pvar'), intern=TRUE)
+                all_files <- system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.pvar$'"), intern = TRUE)
                 genotype_file = all_files
             }
             res = list(genotype_file, 'plink2')
@@ -53,7 +53,7 @@
             genotype_file = paste0(genotype_file, '.bim')
             cat('** PLINK file found.\n')
             if (multiple == TRUE){
-                all_files = system(paste0('ls ', dirname(genotype_file), '/*bim'), intern=TRUE)
+                all_files <- system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.bim$'"), intern = TRUE)
                 genotype_file = all_files
             }
             res = list(genotype_file, 'plink')
@@ -243,6 +243,8 @@
                     if (identical(tmp_info, ori_info)){
                         # then ok
                         matchingsnps_lv1$allele_match[i] = 'yes'
+                    } else{
+                        matchingsnps_lv1$allele_match[i] = 'no'
                     }
                 }
                 # filter out snps where the allele doesn't match
@@ -263,6 +265,8 @@
                             system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Add unique identifier
+                            freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
                                 freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
@@ -278,6 +282,8 @@
                             system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Add unique identifier
+                            freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
                                 freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
@@ -295,6 +301,8 @@
                             system(paste0(script_path, '/plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Add unique identifier
+                            freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
                                 freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
@@ -310,6 +318,8 @@
                             system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
+                            # Add unique identifier
+                            freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
                                 freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
@@ -382,16 +392,19 @@
             # read frequencies
             freq_file_controls = data.table::fread(paste0(outdir, '/frequencies_controls.afreq'), h=T, stringsAsFactors=F)
             freq_file_cases = data.table::fread(paste0(outdir, '/frequencies_cases.afreq'), h=T, stringsAsFactors=F)
+            # create unique identifier
+            freq_file_controls$UNIQUE_ID = paste(freq_file_controls$ID, freq_file_controls$REF, freq_file_controls$ALT, sep = "_")
+            freq_file_cases$UNIQUE_ID = paste(freq_file_cases$ID, freq_file_cases$REF, freq_file_cases$ALT, sep = "_")
             # subset of columns
-            freq_file_controls = freq_file_controls[, c('ID', 'ALT_FREQS', 'OBS_CT')]
-            freq_file_cases = freq_file_cases[, c('ID', 'ALT_FREQS', 'OBS_CT')]
+            freq_file_controls = freq_file_controls[, c('ID', 'ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
+            freq_file_cases = freq_file_cases[, c('ID', 'ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
             # rename columns
-            colnames(freq_file_controls) = c('ID', paste0('ALT_FREQS_', v, '_controls'), paste0('ALT_FREQS_', v, '_controls_obs'))
-            colnames(freq_file_cases) = c('ID', paste0('ALT_FREQS_', v, '_cases'), paste0('ALT_FREQS_', v, '_cases_obs'))
+            colnames(freq_file_controls) = c('ID', paste0('ALT_FREQS_', v, '_controls'), paste0('ALT_FREQS_', v, '_controls_obs'), 'UNIQUE_ID')
+            colnames(freq_file_cases) = c('ID', paste0('ALT_FREQS_', v, '_cases'), paste0('ALT_FREQS_', v, '_cases_obs'), 'UNIQUE_ID')
             # combine files
-            freq_cc_merged = merge(freq_file_controls, freq_file_cases, by = 'ID', all = T)
+            freq_cc_merged = merge(freq_file_controls, freq_file_cases, by = 'UNIQUE_ID', all = T)
             # combine with all frequencies
-            freq_file = merge(freq_file, freq_cc_merged, by = 'ID', all = T)
+            freq_file = merge(freq_file, freq_cc_merged, by = 'UNIQUE_ID', all = T)
         }
         return(freq_file)
     }
@@ -432,10 +445,10 @@
                     # add to main df
                     prs_df$PRS = prs_df$PRS + temp$score
                     # also save the included snps
-                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Included', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
+                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Included', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos, SNPID_DATA = colnames(dosages)[i], REASON = NA))
                 } else {
-                    cat('** Alleles do not match for snp ', temp_name, '. Skipping.\n')
-                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Excluded', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos))
+                    cat(paste0('** Alleles do not match for snp ', temp_name, ': Expected alleles: ', temp_snpdata$EFFECT_ALLELE, '/', temp_snpdata$OTHER_ALLELE, ' - Found alleles: ', temp_effect, '/', temp_other, '. Skipping.\n'))
+                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Excluded', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos, SNPID_DATA = colnames(dosages)[i], REASON = 'Alleles_do_not_match'))
                 }
             }
         }
@@ -634,7 +647,7 @@
         # Identify missing SNPs
         missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
         if (nrow(missing) > 0) {
-            excluded <- data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
+            excluded <- data.frame(SNP = NA, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', CHROM = missing$CHROM, POS = missing$POS, SNPID_DATA = NA, REASON = 'Variant_not_found', ID = missing$ID)
             included_snps <- rbind(included_snps, excluded)
         }
         # Write SNPs included (and excluded) file

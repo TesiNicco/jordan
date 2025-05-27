@@ -1,3 +1,0 @@
-Predictor	Outcome	Covariates	Beta_PRS	SE_PRS	P_PRS	Model	N_tot	N_missing	Mapping	Model_converged	N_effective	N_cases	N_controls
-PRS	AD	SEX,PC1,PC2,PC3	-1.56421406074719e-12	6299.09481960688	1	binomial	3202	0	1 -> 0; 2 -> 1	FALSE	3202	1601	1601
-PRS	MMSE	SEX,PC1,PC2,PC3	-0.00724396205631624	0.0350834742020483	0.836430778874927	gaussian	3202	0	No mapping needed	TRUE	3202	NA	NA
