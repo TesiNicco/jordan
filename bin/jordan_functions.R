@@ -426,9 +426,12 @@
             # get the info from the snpdata
             temp_snpinfo = mappingSnp[which(mappingSnp$id == temp_name),]
             temp_snpdata = snps_data[which(snps_data$CHROM == temp_snpinfo$chr & snps_data$POS == temp_snpinfo$pos),]
+            # check if the beta of the snp is NA otherwise put 0
+            temp_snpdata$risk_beta[is.na(temp_snpdata$risk_beta)] = 0
             # get additional weight if requested
             if (addWeight != FALSE){
                 addWeight_num = as.numeric(temp_snpdata[, ..addWeight])
+                addWeight_num[is.na(addWeight_num)] = 0
             } else {
                 addWeight_num = 1
             }
