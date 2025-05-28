@@ -1,6 +1,8 @@
 # jordan
-This repository provides a command-line R script and a Shiny-based graphical interface to (i) compute Polygenic Risk Scores (PRS) from genotype data (VCF/BCF/PLINK formats), (ii) perform single-variant association testing, and (iii) generate comprehensive diagnostic and association plots.  
+This repository provides a command-line R script and a Shiny-based graphical interface to (1) compute Polygenic Risk Scores (PRS) from genotype data (VCF/BCF/PLINK formats), (2) perform single-variant and PRS association testing, and (3) generate comprehensive diagnostic and association plots.  
 The R script (`jordan.R`) can be executed standalone via the command line, while the Shiny app (`shiny_app/`) offers a user-friendly interface that internally wraps and executes the same script using dynamic input.  
+
+`jordan` is currently under active development.
 
 ## Install
 Clone the repository locally:
@@ -16,14 +18,16 @@ chmod +x ./jordan/bin/jordan.R
 Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`.
 In case these are not installed, you can install with the following code:
 ```console
+R  
 install.packages(c("argparse", "data.table", "stringr", "ggplot2"))
 ```
 In addition to R packages, you need to have [PLINK2](https://www.cog-genomics.org/plink/2.0/) and [PLINK](https://www.cog-genomics.org/plink/1.9/) installed in your system.  
-If all this is OK, then you should be able to run the script. These are also provided in this package. 
+PLINK and PLINK2 executables are also provided in this package. 
 
 ## Shiny application
-We provide also an application wrapper around `jordan.R`, which allows the user to run the script with a graphic interface using dynamic input. In order to use the application, few additional `R` packages need to be installed: `shiny`, `tools`, `shinyjs`, `processx`. These can be installed with the following command:
+The application wrapper around `jordan.R` allows the user to run the script with a graphic interface using dynamic input. In order to use the application, few additional `R` packages need to be installed: `shiny`, `tools`, `shinyjs`, `processx`. These can be installed with the following command:
 ```console
+R
 install.packages(c("argparse", "data.table", "stringr", "ggplot2", "shiny", "tools", "shinyjs", "processx"))
 ```
 
@@ -52,9 +56,9 @@ will display the help message. `jordan` parameters are:
 ## PRS and weights
 There can be different types of PRS: (i) *unweighted*, (ii) *weighted*, and (iii) *multiple-weighted*. *Unweighted* PRS are simply the sum of trait-associated alleles, with all variants having the same weight. To do this in jordan, simply set the BETA to 1 in the `--snplist` file to all variants. *Weighted* PRS are the most commonly used PRS, defined as the weighted sum of trait-associated alleles, weighted by an effect size, typically originating from a GWAS study. In `jordan`, PRS calculation is implemented as:  
 $PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp}$  
-Finally, *multiple-weighted* PRS can be handy for calculating pathway-specific PRS or cell-specific PRS. In these cases, the additional weight (on top of the BETA, quantifying the effect on the trait of interest) will quantify the effect of each variant on a specific pathway, or cell-type. When an additional weight is selected with `--addWeight` option, for example for the calculation of pathway-specific PRS, then the formula will adapt accordingly to:  
+Finally, *multiple-weighted* PRS can be handy for calculating pathway-specific PRS or cell-specific PRS. In these cases, the additional weight (on top of the BETA, quantifying the effect on the trait of interest) is needed. This additional weight will quantify the effect of each variant on a specific pathway, or cell-type. When an additional weight is selected with `--addWeight` option, for example for the calculation of pathway-specific PRS, then the formula will adapt accordingly to:  
 $PRS_{sample} = \sum_{snp}^{SNPs} \alpha_{snp} \cdot \beta_{snp} \cdot w_{snp}$  
-We previously used [PRS](https://alz-journals.onlinelibrary.wiley.com/doi/epdf/10.1002/alz.13810) and [pathway-PRS](https://pmc.ncbi.nlm.nih.gov/articles/PMC7524800/#:~:text=Immune%20response%20and%20endocytosis%20pathways,resilience%20against%20Alzheimer's%20disease%20%2D%20PMC) for the associations with Alzheimer's Disease previously.
+We previously used [PRS](https://alz-journals.onlinelibrary.wiley.com/doi/epdf/10.1002/alz.13810) and [pathway-PRS](https://pmc.ncbi.nlm.nih.gov/articles/PMC7524800/#:~:text=Immune%20response%20and%20endocytosis%20pathways,resilience%20against%20Alzheimer's%20disease%20%2D%20PMC) for the associations with Alzheimer's Disease.
 
 ## Example usage
 The `example_scripts.sh` file in `example_data` folder reports multiple example commands. Here below it is reported its content:
@@ -95,14 +99,11 @@ jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01
 To test everything is allright, you can use the following script alongside the example datasets provided in the repository. The example data will make a PRS from 85 SNPs associated with Alzheimer's Disease in individuals from the 1000Genome Project. 
 
 ## Application wrapper
-The application wrapper can be run using the following code from the `shiny_app/` folder:
-```console
-Rscript app.R
-```  
-Alternatively, the app can be run from anywhere in your system with the following code:
+The application can be run from anywhere in your system with the following code:
 ```console
 Rscript -e "shiny::runApp('/path/to/jordan/bin/shiny_app/app.R', port = 4525, host = '127.0.0.1')"
 ```  
+The server normally exposes the graphic interface on a port (in the second comman it is specified as 4525, but can be changed). The user can then user any browser to open the connection, for example by using the URL http://127.0.0.1:4525.
 
 ## Contact
 For comments, feedback, or questions, feel free to reach me at [n.tesi@amsterdamumc.nl](mailto:n.tesi@amsterdamumc.nl) or open an issue.
