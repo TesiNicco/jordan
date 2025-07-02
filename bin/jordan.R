@@ -4,6 +4,7 @@
     library(argparse)
     library(data.table)
     library(stringr)
+    library(survival)
     library(ggplot2)
     args <- commandArgs(trailingOnly = FALSE)
 
@@ -38,6 +39,8 @@
         parser$add_argument("--keepDosage", help="When present, dosages will be kept.", default = FALSE, action = "store_true")
         # Calculate frequency
         parser$add_argument("--freq", help="When present, allele frequencies will be calculated. This is useful to check the MAF of the SNPs in the input file.", default = FALSE, action = "store_true")
+        # Sex-stratified analysis
+        parser$add_argument("--sex-strata", help="When present, the association analyses will be conducted in males, females, and the combined group. Make sure that a variable SEX or sex is present in the association file.", default = FALSE, action = "store_true")
     # Optional arguments
         parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)
         # Minor allele frequency filter
@@ -48,7 +51,8 @@
         parser$add_argument("--assoc-var", help="Comma-separated list of the variables to associate.", default = FALSE)
         # Association covariates
         parser$add_argument("--assoc-cov", help="Comma-separated list of the covariates to include in the association testing.", default = FALSE)
-
+        # Survival analysis
+        parser$add_argument("--survival-var", help="When present, the comma-separated list of variables will be subject to survival analysis. This will be a Cox regression analysis, with the same covariates as in the association testing. The variables should be in the format: 'time, event', where time is the time to event and event is the event status (1 for event, 0 for censored). For example, event should be defined as {variable}_EVENT. If event is not present, will assume the event is the same for all individuals.", default = FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -67,6 +71,8 @@
         assoc_file = args$assoc[2]
         assoc_var = args$assoc_var
         assoc_cov = args$assoc_cov
+        assoc_survival = args$survival_var
+        sex_strata = args$sex_strata
 
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
@@ -86,6 +92,8 @@
         }
         cat("\nAssociation variables: ", assoc_var)
         cat("\nAssociation covariates: ", assoc_cov)
+        cat("\nAssociation survival: ", assoc_survival)
+        cat("\nSex-stratified analysis: ", sex_strata)
         cat("\nPlot: ", plt, '\n\n')
     
 # Check inputs
@@ -112,7 +120,7 @@
             # Check association mode
             assoc_mode = checkAssocMode(assoc_mode)
             # Check association file
-            assoc_info = checkAssocFile(assoc_file, assoc_var, assoc_cov)
+            assoc_info = checkAssocFile(assoc_file, assoc_var, assoc_cov, assoc_survival, sex_strata)
         } else {
             assoc_info = FALSE
         }
@@ -121,10 +129,10 @@
         cat('\n** Inputs are valid. Starting the script.\n\n')
             
         # Add log file with run info to the output folder
-        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov)
+        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov, assoc_survival, sex_strata)
             
         # Calculate PRS
-        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path)
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata)
 
         # Write outputs
         cat('\n**** Writing outputs.\n')
@@ -134,13 +142,13 @@
             dosages = res[[3]]
             all_freq = res[[4]]
             # Write PRS with and without APOE
-            write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir)
-            write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir)
+            write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir, assoc_info)
+            write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir, assoc_info)
         } else {
             res_prs = res[[1]]
             dosages = res[[2]]
             all_freq = res[[3]]
-            write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir)
+            write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir, assoc_info)
         }
 
         # Association testing
@@ -149,10 +157,10 @@
             if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
-                assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages)
-                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages)
+                assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata)
+                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages, sex_strata)
             } else {
-                assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages)
+                assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata)
             }
         }
 

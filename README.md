@@ -15,7 +15,7 @@ You may need to make the main file executable by typing:
 chmod +x ./jordan/bin/jordan.R
 ```
 
-Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`.
+Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, and `survival`.
 In case these are not installed, you can install with the following code:
 ```console
 R  

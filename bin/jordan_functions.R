@@ -3,6 +3,7 @@
     library(data.table)
     library(stringr)
     library(ggplot2)
+    library(survival)
     library(ggExtra)
 
 # Functions
@@ -134,7 +135,7 @@
                 # case-control frequency only for binary traits --> model should be binomial
                 if (any(grepl('binomial', assoc_vars))){
                     # then frequencies need to be calculated
-                    cc_freq_var = paste(assoc_vars$variable[which(assoc_vars$mode == 'binomial')], collapse = ',')
+                    cc_freq_var = paste(unique(assoc_vars$variable[which(assoc_vars$mode == 'binomial')]), collapse = ',')
                     return(cc_freq_var)
                 } else {
                     # otherwise not
@@ -149,7 +150,7 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata){
         # decide whether frequencies in cases and controls need to be calculated
         freq_mode = defineFreqMode(assoc_file, assoc_info, freq)
         # match ids in the plink file and extract dosages/genotypes
@@ -396,11 +397,11 @@
             freq_file_controls$UNIQUE_ID = paste(freq_file_controls$ID, freq_file_controls$REF, freq_file_controls$ALT, sep = "_")
             freq_file_cases$UNIQUE_ID = paste(freq_file_cases$ID, freq_file_cases$REF, freq_file_cases$ALT, sep = "_")
             # subset of columns
-            freq_file_controls = freq_file_controls[, c('ID', 'ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
-            freq_file_cases = freq_file_cases[, c('ID', 'ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
+            freq_file_controls = freq_file_controls[, c('ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
+            freq_file_cases = freq_file_cases[, c('ALT_FREQS', 'OBS_CT', 'UNIQUE_ID')]
             # rename columns
-            colnames(freq_file_controls) = c('ID', paste0('ALT_FREQS_', v, '_controls'), paste0('ALT_FREQS_', v, '_controls_obs'), 'UNIQUE_ID')
-            colnames(freq_file_cases) = c('ID', paste0('ALT_FREQS_', v, '_cases'), paste0('ALT_FREQS_', v, '_cases_obs'), 'UNIQUE_ID')
+            colnames(freq_file_controls) = c(paste0('ALT_FREQS_', v, '_controls'), paste0('ALT_FREQS_', v, '_controls_obs'), 'UNIQUE_ID')
+            colnames(freq_file_cases) = c(paste0('ALT_FREQS_', v, '_cases'), paste0('ALT_FREQS_', v, '_cases_obs'), 'UNIQUE_ID')
             # combine files
             freq_cc_merged = merge(freq_file_controls, freq_file_cases, by = 'UNIQUE_ID', all = T)
             # combine with all frequencies
@@ -510,9 +511,8 @@
                     # plot
                     plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab('Polygenic Risk Score') + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
                     # add marginal density plots using ggMarginal
-                    plt_pheno = ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5)
                     pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
-                    print(plt_pheno)
+                    print(ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5))
                     invisible(dev.off())
                 }
             }
@@ -526,9 +526,9 @@
         snps_data$SNP <- paste(snps_data$CHROM, snps_data$POS, sep = ":")
         # identify missing SNPs
         missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
-        if (nrow(missing) > 0) {
+        if (nrow(missing) > 0){
             excluded <- data.frame(SNP = missing$SNP, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
-            included_snps <- rbind(included_snps, excluded)
+            included_snps <- rbind(included_snps[, c('SNP', 'BETA', 'ALLELE', 'OTHER_ALLELE', 'TYPE', 'POS', 'CHROM', 'ID')], excluded)
         }
         included_snps$TYPE = factor(included_snps$TYPE, levels = c('Included', 'Excluded'))
         # order
@@ -630,18 +630,25 @@
     }
 
     # Function to write log file
-    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov){
+    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov, assoc_survival, sex_strata){
         # Define output name
         outname = paste0(outdir, '/run_info.log')
         # Create log info
-        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\n\n')
+        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\nAssociation with survival: ', assoc_survival, '\nSex-stratified: ', sex_strata, '\n\n')
         # Write log file
         writeLines(info, outname)
         return(info)
     }
 
     # Function to write output
-    write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir) {
+    write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir, assoc_info) {
+        # Check if assoc_info is provided
+        if (assoc_info != FALSE){
+            assoc_idname = assoc_info[[1]]
+            assoc_data = assoc_info[[2]]
+            # merge the prs with association info
+            prs_df = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+        }
         # Write PRS table
         write.table(prs_df, paste0(outdir, '/PRS_table', suffix, '.txt'), quote = FALSE, row.names = FALSE, sep = "\t")
         # Construct ID fields
@@ -658,23 +665,57 @@
     }
 
     # Function to check association variables
-    checkAssocVar = function(assoc_var, assoc_data){
+    checkAssocVar = function(assoc_var, assoc_data, assoc_survival, sex_strata){
         # check if variables were provided
         if (assoc_var[1] == FALSE){
             stop('** No association variables provided.\n\n', call. = FALSE)
         }
+        
         # unlist the variables
         assoc_var = unlist(strsplit(assoc_var, ','))
         # check if variables are in the data
-        assoc_var = assoc_var[which(toupper(assoc_var) %in% toupper(colnames(assoc_data)))]
+        assoc_var = toupper(assoc_var)
+        assoc_var = assoc_var[which(assoc_var %in% colnames(assoc_data))]
         if (length(assoc_var) == 0){
             stop('** No association variables found in the data. Did you mispelled the variable names?.\n\n', call. = FALSE)
         }
+        
+        # check if survival analysis is requested
+        if (assoc_survival != FALSE){
+            # check if survival variable is among the variables
+            assoc_survival = toupper(unlist(strsplit(assoc_survival, ',')))
+            # check if all assoc_survival variables are in the assoc_var
+            if (!all(assoc_survival %in% toupper(assoc_var))){
+                stop('** Survival variables not found in the association variables. Please check the variable names.\n\n', call. = FALSE)
+            } else {
+                cat('**** Survival analysis requested for variables: ', paste(assoc_survival, collapse = ', '), '\n')
+            }
+        }
+        
         # Define a dataframe with the association variables
         df_variables = data.frame()
         # Check if the variables are numeric or categorical
         for (i in 1:length(assoc_var)){
-            if (length(table(assoc_data[, assoc_var[i]])) == 2){
+            # check if the variable is in the data
+            if (!(toupper(assoc_var[i]) %in% toupper(colnames(assoc_data)))){
+                stop(paste0('** Variable ', assoc_var[i], ' not found in the association data. Please check the variable names.\n\n'), call. = FALSE)
+            }
+            # check if the variable is survival
+            if (toupper(assoc_var[i]) %in% toupper(assoc_survival)){
+                cat('**** Variable ', assoc_var[i], ': survival variable. Cox regression will be used.\n')
+                # check if there is an event variable
+                if (toupper(paste0(assoc_var[i], '_event')) %in% toupper(colnames(assoc_data))){
+                    # store the mapping before updating the data
+                    cat('**** Event variable found: ', paste0(assoc_var[i], '_EVENT'), '\n')
+                    var_mapping = paste0('No mapping needed;', assoc_var[i], '_EVENT')
+                } else {
+                    cat('**** No event variable found for survival analysis. Using default event variable.\n')
+                    var_mapping = paste0('No mapping needed;')
+                }
+                # update dataframe
+                df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'survival', model = 'cox', mapping = var_mapping, sex = 'all'))
+            # check if the variable has 2 values (binary, numerical or categorical)
+            } else if (length(table(assoc_data[, assoc_var[i]])) == 2){
                 # check if the variable is numeric
                 if (is.numeric(assoc_data[, assoc_var[i]])){
                     cat('**** Variable ', assoc_var[i], ': numeric with 2 values. Logistic regression will be used.\n')
@@ -685,7 +726,7 @@
                     # update values
                     assoc_data[, assoc_var[i]] = ifelse(assoc_data[, assoc_var[i]] == min_value, 0, 1)
                     # update dataframe
-                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'binomial', mapping = var_mapping))
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'binomial', mapping = var_mapping, sex = 'all'))
                 } else {
                     cat('**** Variable ', assoc_var[i], ': categorical with 2 values. Logistic regression will be used.\n')
                     # make sure the smaller is 0 and the larger is 1
@@ -695,7 +736,7 @@
                     # update values
                     assoc_data[, assoc_var[i]] = ifelse(assoc_data[, assoc_var[i]] == min_value, 0, 1)
                     # update dataframe
-                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'categorical', model = 'binomial', mapping = var_mapping))
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'categorical', model = 'binomial', mapping = var_mapping, sex = 'all'))
                 }
             } else {
                 # check if the variable is numeric
@@ -704,14 +745,41 @@
                     # store the mapping before updating the data
                     var_mapping = paste0('No mapping needed')
                     # update dataframe
-                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'gaussian', mapping = var_mapping))
+                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'numeric', model = 'gaussian', mapping = var_mapping, sex = 'all'))
                 } else {
-                    cat('**** Variable ', assoc_var[i], ': categorical with more than 2 values. Linear regression will be used.\n')
-                    # store the mapping before updating the data
-                    var_mapping = paste0('No mapping needed')
-                    # update dataframe
-                    df_variables = rbind(df_variables, data.frame(variable = assoc_var[i], type = 'categorical', model = 'gaussian', mapping = var_mapping))
+                    cat('**** Variable ', assoc_var[i], ': categorical with', length(table(assoc_data[, assoc_var[i]])), 'values. Pairwise logistc regressions will be used.\n')
+                    # collect the values of the variable
+                    unique_values = unique(assoc_data[, assoc_var[i]])
+                    # exclude NA values
+                    unique_values = unique_values[!is.na(unique_values)]
+                    # sort alphabetically
+                    unique_values = sort(unique_values, na.last = TRUE)
+                    # get combinations of the values
+                    pairs <- combn(unique_values, 2, simplify = FALSE)
+                    # iterate over the pairs
+                    for (p in pairs){
+                        # store the mapping before updating the data
+                        var_mapping = paste0(p[1], ' -> 0; ', p[2], ' -> 1')
+                        # update values
+                        assoc_data[, paste(p, collapse = '_vs_')] = ifelse(assoc_data[, assoc_var[i]] == p[1], 0, ifelse(assoc_data[, assoc_var[i]] == p[2], 1, NA))
+                        # update dataframe
+                        df_variables = rbind(df_variables, data.frame(variable = paste(p, collapse = '_vs_'), type = 'categorical', model = 'binomial', mapping = var_mapping, sex = 'all'))
+                    }
                 }
+            }
+        }
+        # check if sex-stratafied analysis is requested
+        if (sex_strata){
+            # collect the values of SEX
+            values_sex = unique(assoc_data[, 'SEX'], na.rm=TRUE)
+            # iterate over the values
+            for (s in values_sex){
+                tmp = df_variables[which(df_variables$sex == 'all'), ]
+                # update sex
+                tmp$sex = s
+                # add to dataframe
+                df_variables = rbind(df_variables, tmp)
+                df_variables$sex = as.character(df_variables$sex)
             }
         }
         return(list(df_variables, assoc_data))
@@ -749,12 +817,13 @@
     }
 
     # Function to check association file
-    checkAssocFile = function(assoc, assoc_var, assoc_cov){
+    checkAssocFile = function(assoc, assoc_var, assoc_cov, assoc_survival, sex_strata){
         # check if file exists
         if (file.exists(assoc)){
             cat('** Association data file found.\n')
             # open file
             assoc_data = fread(assoc, h=T, stringsAsFactors=F, sep="\t")
+            colnames(assoc_data) = toupper(colnames(assoc_data))  # convert column names to uppercase for consistency
             # check if the file is empty
             if (nrow(assoc_data) == 0){
                 stop('** Association data file is empty.\n\n', call. = FALSE)
@@ -766,12 +835,23 @@
             assoc_data[toupper(assoc_data) == 'NA'] = NA
             assoc_data[toupper(assoc_data) == 'N/A'] = NA
             assoc_data[toupper(assoc_data) == 'NAN'] = NA
+            if (sex_strata){
+                # check if SEX variable is present
+                if ('SEX' %in% toupper(colnames(assoc_data))){
+                    cat('**** Sex stratified analysis requested. SEX column found.\n')
+                    # update the sex column to be SEX
+                    colnames(assoc_data)[which(toupper(colnames(assoc_data)) == 'SEX')] = 'SEX'
+                } else {
+                    cat('**** !!! Sex stratified analysis requested but SEX column not found. Association will be run in the whole sample.\n')
+                    sex_strata = FALSE
+                }
+            }
             # check if IID is in the columns
             if ('IID' %in% toupper(colnames(assoc_data))){
                 # get the name of the IID column
                 idname = colnames(assoc_data)[which(toupper(colnames(assoc_data)) == 'IID')]
                 # check variable to associate
-                outcome_info = checkAssocVar(assoc_var, assoc_data)
+                outcome_info = checkAssocVar(assoc_var, assoc_data, assoc_survival, sex_strata)
                 df_variables = outcome_info[[1]]
                 assoc_data = outcome_info[[2]]
                 # check covariates
@@ -786,7 +866,7 @@
     }
 
     # Function to run association
-    assoc_test = function(prs_df, assoc_info, outdir, suffix, assoc_mode, dosages){
+    assoc_test = function(prs_df, assoc_info, outdir, suffix, assoc_mode, dosages, sex_strata){
         # extract association info
         assoc_idname = assoc_info[[1]]
         assoc_data = assoc_info[[2]]
@@ -794,6 +874,7 @@
         assoc_covariates = assoc_info[[4]]
         # merge the prs with association info
         prs_df_pheno = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+        
         # check if single-variant association should be done
         if (assoc_mode %in% c('single', 'both')){
             # get snp names first
@@ -805,21 +886,25 @@
                 stop('** No matching individuals between single-variant and association data.\n\n', call. = FALSE)
             }
         }
+
         # check if the merge was successful for PRS
         if (nrow(prs_df_pheno) == 0 & assoc_mode %in% c('prs', 'both')){
             stop('** No matching individuals between PRS and association data.\n\n', call. = FALSE)
         }
+
         # check which associations need to be done and do them
         if (assoc_mode == 'prs'){
             cat('**** Running association for PRS.\n')
             assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
             # write the results
             write.table(assoc_results_prs, paste0(outdir, '/association_results_PRS', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        
         } else if (assoc_mode == 'single'){
             cat('**** Running association for single-variant.\n')
             assoc_results_single = singleVar_assoc(dosages_pheno, assoc_variables, assoc_covariates, suffix, snp_names)
             # write the results
             write.table(assoc_results_single, paste0(outdir, '/association_results_single', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        
         } else {
             cat('**** Running association for both PRS and single-variant.\n')
             assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
@@ -838,7 +923,20 @@
         assoc_results = data.frame()
         # iterate over the variables
         for (i in 1:nrow(assoc_variables)){
-            cat(paste0('****** Running PRS association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            # check sex first
+            if (assoc_variables$sex[i] != 'all'){
+                prs_df_pheno_sex = prs_df_pheno[which(prs_df_pheno$SEX == assoc_variables$sex[i]), ]
+                tmp_sex = assoc_variables$sex[i]
+            } else {
+                prs_df_pheno_sex = prs_df_pheno
+                tmp_sex = 'all'
+            }
+            cat(paste0('****** Running PRS association in SEX=', assoc_variables$sex[i], ' for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            if (nrow(prs_df_pheno_sex) == 0){
+                cat('******** No individuals left. Skipping!\n')
+                assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = NA, SE_PRS = NA, P_PRS = NA, Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = 'NO', N_effective = 0, N_cases = NA, N_controls = NA, sex = assoc_variables$sex[i], stringsAsFactors = F))
+                next
+            }
             # get the variable name
             var_name = assoc_variables$variable[i]
             # get the model type
@@ -847,25 +945,57 @@
             covar_names = assoc_covariates
             # get the mapping
             var_mapping = assoc_variables$mapping[i]
+            # check if it is survival analysis
+            if (model_type == 'cox'){
+                # take the event if present
+                event_variable = str_split_fixed(assoc_variables$mapping[i], ';', 2)[2]
+                if (event_variable == ''){
+                    event_variable = NA
+                    prs_df_pheno_sex$event = 1
+                    # create survival object
+                    surv_obj = Surv(time = prs_df_pheno_sex[, var_name], event = prs_df_pheno_sex$event)
+                } else {
+                    surv_obj = Surv(time = prs_df_pheno_sex[, var_name], event = prs_df_pheno_sex[, event_variable])
+                }
+            }
             # check if there are covariates
             if (length(na.omit(covar_names)) > 0){
-                # create formula
-                formula = as.formula(paste0(var_name, ' ~ PRS + ', paste(covar_names, collapse = ' + ')))
+                # remove sex from covariates if it is not 'all'
+                if (tmp_sex != 'all'){ covar_names = covar_names[which(covar_names != 'SEX')]}
+                # create formula -- check if it is survival analysis
+                if (model_type == 'cox'){
+                    formula = as.formula(paste0('surv_obj ~ PRS + ', paste(covar_names, collapse = ' + ')))
+                } else {
+                    formula = as.formula(paste0(var_name, ' ~ PRS + ', paste(covar_names, collapse = ' + ')))
+                }
             } else {
-                formula = as.formula(paste0(var_name, ' ~ PRS'))
+                # create formula -- check if it is survival analysis
+                if (model_type == 'cox'){
+                    formula = as.formula(paste0('surv_obj ~ PRS'))
+                } else {
+                    formula = as.formula(paste0(var_name, ' ~ PRS'))
+                }
             }
             # calculate number of cases and controls for logistic regression
             if (model_type == 'binomial'){
-                n_cases = nrow(prs_df_pheno[which(prs_df_pheno[, var_name] == 1),])
-                n_controls = nrow(prs_df_pheno[which(prs_df_pheno[, var_name] == 0),])
+                n_cases = nrow(prs_df_pheno_sex[which(prs_df_pheno_sex[, var_name] == 1),])
+                n_controls = nrow(prs_df_pheno_sex[which(prs_df_pheno_sex[, var_name] == 0),])
             } else {
                 n_cases = NA
                 n_controls = NA
             }
-            # perform association test
-            model = suppressWarnings(glm(formula, data = prs_df_pheno, family = model_type))
-            # add to the results
-            assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(prs_df_pheno), N_missing = sum(is.na(prs_df_pheno[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(prs_df_pheno) - sum(is.na(prs_df_pheno[, var_name])), N_cases = n_cases, N_controls = n_controls, stringsAsFactors = F))
+            # perform association test -- check if it is survival analysis
+            if (model_type == 'cox'){
+                model = suppressWarnings(coxph(formula, data = prs_df_pheno_sex))
+            } else {
+                model = suppressWarnings(glm(formula, data = prs_df_pheno_sex, family = model_type))
+            }
+            # add to the results -- check if it is survival analysis
+            if (model_type == 'cox'){
+                assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[1, 1], SE_PRS = summary(model)$coefficients[1, 3], P_PRS = summary(model)$coefficients[1, 5], Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(prs_df_pheno_sex) - sum(is.na(prs_df_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = assoc_variables$sex[i], stringsAsFactors = F))
+            } else {
+                assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(prs_df_pheno_sex) - sum(is.na(prs_df_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = assoc_variables$sex[i], stringsAsFactors = F))
+            }
         }
         return(assoc_results)
     }
@@ -878,7 +1008,20 @@
         assoc_results = data.frame()
         # iterate over the variables
         for (i in 1:nrow(assoc_variables)){
-            cat(paste0('****** Running single-variant association for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            # check sex first
+            if (assoc_variables$sex[i] != 'all'){
+                dosages_pheno_sex = dosages_pheno[which(dosages_pheno$SEX == assoc_variables$sex[i]), ]
+                tmp_sex = assoc_variables$sex[i]
+            } else {
+                dosages_pheno_sex = dosages_pheno
+                tmp_sex = 'all'
+            }
+            cat(paste0('****** Running single-variant analysis in SEX=', assoc_variables$sex[i], ' for variable: ', assoc_variables$variable[i], ' ', str_replace_all(suffix, '_', ''), '\n'))
+            if (nrow(dosages_pheno_sex) == 0){
+                cat('******** No individuals left. Skipping!\n')
+                assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = NA, SE_PRS = NA, P_PRS = NA, Model = model_type, N_tot = nrow(dosages_pheno_sex), N_missing = sum(is.na(dosages_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = 'NO', N_effective = 0, N_cases = NA, N_controls = NA, sex = assoc_variables$sex[i], stringsAsFactors = F))
+                next
+            }
             # get the variable name
             var_name = assoc_variables$variable[i]
             # get the model type
@@ -887,36 +1030,68 @@
             covar_names = assoc_covariates
             # get the mapping
             var_mapping = assoc_variables$mapping[i]
+            # check if it is survival analysis
+            if (model_type == 'cox'){
+                # take the event if present
+                event_variable = str_split_fixed(assoc_variables$mapping[i], ';', 2)[2]
+                if (event_variable == ''){
+                    event_variable = NA
+                    dosages_pheno_sex$event = 1
+                    # create survival object
+                    surv_obj = Surv(time = dosages_pheno_sex[, var_name], event = dosages_pheno_sex$event)
+                } else {
+                    surv_obj = Surv(time = dosages_pheno_sex[, var_name], event = dosages_pheno_sex[, event_variable])
+                }
+            }
             # then iterate over the snps
             for (snp in snp_names){
                 tryCatch({
                     # update the snp name as otherwise there are bad characters in the name (e.g. /)
-                    colnames(dosages_pheno)[which(colnames(dosages_pheno) == snp)] = 'SNP'
+                    colnames(dosages_pheno_sex)[which(colnames(dosages_pheno_sex) == snp)] = 'SNP'
                     # check if there are covariates
                     if (length(na.omit(covar_names)) > 0){
-                        # create formula
-                        formula = as.formula(paste0(var_name, ' ~ SNP + ', paste(covar_names, collapse = ' + ')))
+                        # remove sex from covariates if it is not 'all'
+                        if (tmp_sex != 'all'){ covar_names = covar_names[which(covar_names != 'SEX')]}
+                        # create formula -- check if it is survival analysis
+                        if (model_type == 'cox'){
+                            formula = as.formula(paste0('surv_obj ~ SNP + ', paste(covar_names, collapse = ' + ')))
+                        } else {
+                            formula = as.formula(paste0(var_name, ' ~ SNP + ', paste(covar_names, collapse = ' + ')))
+                        }
                     } else {
-                        formula = as.formula(paste0(var_name, ' ~ SNP'))
+                        # create formula -- check if it is survival analysis
+                        if (model_type == 'cox'){
+                            formula = as.formula(paste0('surv_obj ~ SNP'))
+                        } else {
+                            formula = as.formula(paste0(var_name, ' ~ SNP'))
+                        }
                     }
                     # calculate number of cases and controls for logistic regression
                     if (model_type == 'binomial'){
-                        n_cases = nrow(dosages_pheno[which(dosages_pheno[, var_name] == 1),])
-                        n_controls = nrow(dosages_pheno[which(dosages_pheno[, var_name] == 0),])
+                        n_cases = nrow(dosages_pheno_sex[which(dosages_pheno_sex[, var_name] == 1),])
+                        n_controls = nrow(dosages_pheno_sex[which(dosages_pheno_sex[, var_name] == 0),])
                     } else {
                         n_cases = NA
                         n_controls = NA
                     }
-                    # perform association test
-                    model = suppressWarnings(glm(formula, data = dosages_pheno, family = model_type))
-                    # add to the results
-                    assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(dosages_pheno), N_missing = sum(is.na(dosages_pheno[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(dosages_pheno) - sum(is.na(dosages_pheno[, var_name])), N_cases = n_cases, N_controls = n_controls, stringsAsFactors = F))
+                    # perform association test -- check if it is survival analysis
+                    if (model_type == 'cox'){
+                        model = suppressWarnings(coxph(formula, data = dosages_pheno_sex))
+                    } else {
+                        model = suppressWarnings(glm(formula, data = dosages_pheno_sex, family = model_type))
+                    }
+                    # add to the results -- check if it is survival analysis
+                    if (model_type == 'cox'){
+                        assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[1, 1], SE_PRS = summary(model)$coefficients[1, 3], P_PRS = summary(model)$coefficients[1, 5], Model = model_type, N_tot = nrow(dosages_pheno_sex), N_missing = sum(is.na(dosages_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(dosages_pheno_sex) - sum(is.na(dosages_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = tmp_sex, stringsAsFactors = F))
+                    } else {
+                        assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(dosages_pheno_sex), N_missing = sum(is.na(dosages_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(dosages_pheno_sex) - sum(is.na(dosages_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = tmp_sex, stringsAsFactors = F))
+                    }
                     # restore the name
-                    colnames(dosages_pheno)[which(colnames(dosages_pheno) == 'SNP')] = snp
+                    colnames(dosages_pheno_sex)[which(colnames(dosages_pheno_sex) == 'SNP')] = snp
                 },
                 error = function(e){
                     # add to the results
-                    assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = NA, SE_PRS = NA, P_PRS = NA, Model = model_type, N_tot = nrow(dosages_pheno), N_missing = sum(is.na(dosages_pheno[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(dosages_pheno) - sum(is.na(dosages_pheno[, var_name])), N_cases = NA, N_controls = NA, stringsAsFactors = F))
+                    assoc_results = rbind(assoc_results, data.frame(Predictor = snp, Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = NA, SE_PRS = NA, P_PRS = NA, Model = model_type, N_tot = nrow(dosages_pheno_sex), N_missing = sum(is.na(dosages_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(dosages_pheno_sex) - sum(is.na(dosages_pheno_sex[, var_name])), N_cases = NA, N_controls = NA, sex = tmp_sex, stringsAsFactors = F))
                 })
             }
         }
