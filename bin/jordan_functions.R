@@ -643,7 +643,7 @@
     # Function to write output
     write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir, assoc_info) {
         # Check if assoc_info is provided
-        if (assoc_info != FALSE){
+        if (length(assoc_info) >1){
             assoc_idname = assoc_info[[1]]
             assoc_data = assoc_info[[2]]
             # merge the prs with association info
@@ -1096,4 +1096,126 @@
             }
         }
         return(assoc_results)
+    }
+
+    # Function to check tiles
+    checkTiles = function(tiles_prs, assoc_info){
+        # split the tiles by comma
+        tiles_prs = unlist(strsplit(tiles_prs, ','))
+        # remove spaces
+        tiles_prs = gsub(" ", "", tiles_prs)
+        # check if we have tiles
+        if (length(tiles_prs) == 0 || all(tiles_prs == '')){
+            stop('**** No tiles provided for PRS calculation. Please check examples and try again.\n\n', call. = FALSE)
+        }
+        # dataframe to store the tiles
+        tiles_info_df = data.frame()
+        # iterate over the tiles
+        for (tile in tiles_prs){
+            # split the tile by colon
+            tile_info = unlist(strsplit(tile, ';'))
+            # check if the tile has 3 parts
+            if (length(tile_info) != 3){
+                stop(paste0('**** Tile ', tile, ' is not valid. Please provide tiles in the format n_tiles:variable:group.\n\n'), call. = FALSE)
+            }
+            # check if the variable is in the association data
+            if (toupper(tile_info[2]) %in% colnames(assoc_info[[2]])){
+                # add to dataframe
+                tiles_info_df = rbind(tiles_info_df, data.frame(n_tiles = as.numeric(tile_info[1]), variable = toupper(tile_info[2]), group = tile_info[3], stringsAsFactors = FALSE))
+            } else {
+                stop(paste0('**** Variable ', tile_info[2], ' not found in the association data. Please check the variable names.\n\n'), call. = FALSE)
+            }
+        }
+        return(tiles_info_df)
+    }
+
+    # Function to make tiles
+    makeTiles = function(res_prs, tiles_prs, assoc_info){
+        # define output dataframe
+        res_prs_with_tiles = data.frame()
+        # iterate over tiles
+        for (tile in 1:nrow(tiles_prs)){
+            # get the tile info
+            n_tiles = tiles_prs$n_tiles[tile]
+            variable = tiles_prs$variable[tile]
+            group = tiles_prs$group[tile]
+            # take the variable from the association info and add it to the PRS results
+            tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+            tmp_assoc_prs = merge(res_prs, tmp_assoc, by.x = 'iid', by.y = assoc_info[[1]], all.x = TRUE)
+            # Check if the reference group is present or not
+            if (group == 'NA'){
+                # Compute decile cutoffs from the whole sample
+                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS, probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
+            } else {
+                # Compute decile cutoffs from the control group
+                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[tmp_assoc_prs[, variable] == group], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
+            }
+            # Create a new column in the data frame to assign deciles
+            tmp_assoc_prs[, paste0(n_tiles, '_Tiles_', variable, '_', group)] = cut(tmp_assoc_prs$PRS, breaks = tmp_prs_tiles, labels = 1:n_tiles, include.lowest = TRUE, right = TRUE)
+            # add to the results
+            if (nrow(res_prs_with_tiles) == 0){
+                res_prs_with_tiles = tmp_assoc_prs[, c('iid', 'PRS', paste0(n_tiles, '_Tiles_', variable, '_', group))]
+            } else {
+                # merge with the previous results
+                res_prs_with_tiles = merge(res_prs_with_tiles, tmp_assoc_prs[, c('iid', paste0(n_tiles, '_Tiles_', variable, '_', group))], by = 'iid', all.x = TRUE)
+            }
+        }
+        return(res_prs_with_tiles)
+    }
+
+    # Function to check split info
+    checkSplit = function(split_info, assoc_info){
+        # split by comma
+        split_prs = unlist(strsplit(split_info, ','))
+        # remove spaces
+        split_prs = gsub(" ", "", split_prs)
+        # check if we have splits
+        if (length(split_prs) == 0 || all(split_prs == '')){
+            stop('**** No split information provided for PRS calculation. Please check examples and try again.\n\n', call. = FALSE)
+        }
+        # dataframe to store the tiles
+        split_info_df = data.frame()
+        # iterate over the tiles
+        for (spl in split_prs){
+            # split the tile by colon
+            split_info = unlist(strsplit(spl, ';'))
+            # check if the tile has 2 parts
+            if (length(split_info) != 2){
+                stop(paste0('**** Split info ', spl, ' is not valid. Please provide splits in the format variable:threshold.\n\n'), call. = FALSE)
+            }
+            # check if the variable is in the association data
+            if (toupper(split_info[1]) %in% toupper(assoc_info[[3]]$variable)){
+                # add to dataframe
+                split_info_df = rbind(split_info_df, data.frame(n_split = length(strsplit(split_info[2], '-')[[1]])+1, variable = toupper(split_info[1]), thresholds = split_info[2], stringsAsFactors = FALSE))
+            } else {
+                stop(paste0('**** Variable ', tile_info[2], ' not found in the association data. Please check the variable names.\n\n'), call. = FALSE)
+            }
+        }
+        return(split_info_df)
+    }
+
+    # Function to make splits
+    makeSplit = function(res_prs, split_info, assoc_info){
+        # define output dataframe
+        res_prs_with_split = data.frame()
+        # iterate over splits
+        for (spl in 1:nrow(split_info)){
+            # get the split info
+            variable = split_info$variable[spl]
+            thresholds = c(-Inf, as.numeric(unlist(strsplit(split_info$thresholds[spl], '-'))), Inf)
+            # take the variable from the association info and add it to the PRS results
+            tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+            tmp_assoc_prs = merge(res_prs, tmp_assoc, by.x = 'iid', by.y = assoc_info[[1]], all.x = TRUE)
+            # Create a new column in the data frame to assign splits
+            tmp_assoc_prs[, paste0('Split_', variable, '_', split_info$thresholds[spl])] = cut(tmp_assoc_prs[, variable], breaks = thresholds, labels = 1:split_info$n_split[spl], include.lowest = TRUE, right = TRUE)
+            # add to the results
+            if (nrow(res_prs_with_split) == 0){
+                tmp_assoc_prs <- tmp_assoc_prs[ , !(names(tmp_assoc_prs) %in% variable)]
+                res_prs_with_split = tmp_assoc_prs
+            } else {
+                # merge with the previous results
+                res_prs_with_split = merge(res_prs_with_split, tmp_assoc_prs[, c('iid', paste0('Split_', variable, '_', split_info$thresholds[spl]))], by = 'iid', all.x = TRUE)
+            }
+        }
+        return(res_prs_with_split)
     }

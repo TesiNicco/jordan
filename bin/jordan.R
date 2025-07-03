@@ -42,6 +42,7 @@
         # Sex-stratified analysis
         parser$add_argument("--sex-strata", help="When present, the association analyses will be conducted in males, females, and the combined group. Make sure that a variable SEX or sex is present in the association file.", default = FALSE, action = "store_true")
     # Optional arguments
+        # Additional weight for the prs
         parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)
         # Minor allele frequency filter
         parser$add_argument("--maf", help="When present, a filtering based on Minor Allele Frequency (MAF) will be applied. Usage: 0.01 for MAF>1%%.", default = FALSE)
@@ -53,6 +54,10 @@
         parser$add_argument("--assoc-cov", help="Comma-separated list of the covariates to include in the association testing.", default = FALSE)
         # Survival analysis
         parser$add_argument("--survival-var", help="When present, the comma-separated list of variables will be subject to survival analysis. This will be a Cox regression analysis, with the same covariates as in the association testing. The variables should be in the format: 'time, event', where time is the time to event and event is the event status (1 for event, 0 for censored). For example, event should be defined as {variable}_EVENT. If event is not present, will assume the event is the same for all individuals.", default = FALSE)
+        # Decile based analysis, accepts a comma-separated list of variables
+        parser$add_argument("--tiles", help="When present, the individuals will be divided into n-tiles based on the PRS and the user preference. The tiles can be calculated on a specific subset of individuals, and applied to all other individuals. The variables should be in the format: 'n_tiles;reference_group_variable;reference_group_name, n_tiles;reference_group_variable;reference_group_name, ...'. See example in the README and example scripts.", default = FALSE)
+        # Split individuals based on defined thresholds
+        parser$add_argument("--split", help="When present, the individuals will be split into groups based on the defined thresholds. The thresholds should be provided as a comma-separated list of values. The values should be numeric and in ascending order. For example, --split 'reference_group_variable;threshold1-threshold2-threshold3, ...'.", default = FALSE)
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -73,6 +78,8 @@
         assoc_cov = args$assoc_cov
         assoc_survival = args$survival_var
         sex_strata = args$sex_strata
+        tiles_prs = args$tiles
+        split_info = args$split
 
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
@@ -94,6 +101,8 @@
         cat("\nAssociation covariates: ", assoc_cov)
         cat("\nAssociation survival: ", assoc_survival)
         cat("\nSex-stratified analysis: ", sex_strata)
+        cat("\nTile-based analysis: ", tiles_prs)
+        cat("\nSplit individuals: ", split_info)
         cat("\nPlot: ", plt, '\n\n')
     
 # Check inputs
@@ -133,6 +142,52 @@
             
         # Calculate PRS
         res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata)
+
+        # Check if tile-based analysis is requested
+        if (tiles_prs != FALSE){
+            cat('\n**** Tile-based analysis requested.\n')
+            # Check tiles_prs format
+            cat('****** Checking tiles preferences and making tiles.\n')
+            tiles_prs = checkTiles(tiles_prs, assoc_info)
+            # check if APOE is considered
+            if (excludeAPOE){
+                res_prs = res[[1]][[1]]
+                res_noapoe = res[[2]][[1]]
+                # Make tiles for PRS with APOE
+                res_prs_with_tiles = makeTiles(res_prs, tiles_prs, assoc_info)
+                res[[1]][[1]] = res_prs_with_tiles
+                # Make tiles for PRS without APOE
+                res_noapoe_with_tiles = makeTiles(res_noapoe, tiles_prs, assoc_info)
+                res[[2]][[1]] = res_noapoe_with_tiles
+            } else {
+                res_prs = res[[1]][[1]]
+                res_prs_with_tiles = makeTiles(res_prs, tiles_prs, assoc_info)
+                res[[1]][[1]] = res_prs_with_tiles
+            }
+        }
+
+        # Check if split is requested
+        if (split_info != FALSE){
+            cat('\n**** Split individuals requested.\n')
+            # Check split_info format
+            cat('****** Checking split preferences and making splits.\n')
+            split_info = checkSplit(split_info, assoc_info)
+            # check if APOE is considered
+            if (excludeAPOE){
+                # Make split for PRS with APOE
+                res_prs = res[[1]][[1]]
+                res_noapoe = res[[2]][[1]]
+                res_prs_with_split = makeSplit(res_prs, split_info, assoc_info)
+                res_noapoe_with_split = makeSplit(res_noapoe, split_info, assoc_info)
+                res[[1]][[1]] = res_prs_with_split
+                res[[2]][[1]] = res_noapoe_with_split
+            } else {
+                res_prs = res[[1]][[1]]
+                # Make split for PRS
+                res_prs_with_split = makeSplit(res_prs, split_info, assoc_info)
+                res[[1]][[1]] = res_prs_with_split
+            }
+        }
 
         # Write outputs
         cat('\n**** Writing outputs.\n')
