@@ -1281,8 +1281,8 @@
         } 
 
         # write the results
-        write.table(res_prs_with_tiles, paste0(outdir, '/PRS_results_with_tiles', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
-        write.table(res_prs_with_split, paste0(outdir, '/PRS_results_with_splits', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        write.table(tiles_results, paste0(outdir, '/PRS_results_with_tiles', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        write.table(splits_results, paste0(outdir, '/PRS_results_with_splits', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
         return(list(tiles_results, splits_results))
     }
 
