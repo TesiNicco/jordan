@@ -58,6 +58,8 @@
         parser$add_argument("--tiles", help="When present, the individuals will be divided into n-tiles based on the PRS and the user preference. The tiles can be calculated on a specific subset of individuals, and applied to all other individuals. The variables should be in the format: 'n_tiles;reference_group_variable;reference_group_name, n_tiles;reference_group_variable;reference_group_name, ...'. See example in the README and example scripts.", default = FALSE)
         # Split individuals based on defined thresholds
         parser$add_argument("--split", help="When present, the individuals will be split into groups based on the defined thresholds. The thresholds should be provided as a comma-separated list of values. The values should be numeric and in ascending order. For example, --split 'reference_group_variable;threshold1-threshold2-threshold3, ...'.", default = FALSE)
+        # Association of the split/tiles
+        parser$add_argument("--assoc-split-tiles", help="When present, the association testing will be conducted on the split/tiles. The association will be conducted on the split/tiles defined by the --split or --tiles arguments.", default = FALSE, action = "store_true")
     # Read arguments
         args <- parser$parse_args()
         genotype_file <- args$genotype
@@ -80,6 +82,7 @@
         sex_strata = args$sex_strata
         tiles_prs = args$tiles
         split_info = args$split
+        assoc_split = args$assoc_split_tiles
 
     # Print arguments on screen
         cat("\nGenotype file: ", genotype_file)
@@ -103,6 +106,7 @@
         cat("\nSex-stratified analysis: ", sex_strata)
         cat("\nTile-based analysis: ", tiles_prs)
         cat("\nSplit individuals: ", split_info)
+        cat("\nAssociation of the split/tiles: ", assoc_split)
         cat("\nPlot: ", plt, '\n\n')
     
 # Check inputs
@@ -148,22 +152,24 @@
             cat('\n**** Tile-based analysis requested.\n')
             # Check tiles_prs format
             cat('****** Checking tiles preferences and making tiles.\n')
-            tiles_prs = checkTiles(tiles_prs, assoc_info)
+            tiles_prs_df = checkTiles(tiles_prs, assoc_info, sex_strata)
             # check if APOE is considered
             if (excludeAPOE){
                 res_prs = res[[1]][[1]]
                 res_noapoe = res[[2]][[1]]
                 # Make tiles for PRS with APOE
-                res_prs_with_tiles = makeTiles(res_prs, tiles_prs, assoc_info)
+                res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
                 res[[1]][[1]] = res_prs_with_tiles
                 # Make tiles for PRS without APOE
-                res_noapoe_with_tiles = makeTiles(res_noapoe, tiles_prs, assoc_info)
+                res_noapoe_with_tiles = makeTiles(res_noapoe, tiles_prs_df, assoc_info)
                 res[[2]][[1]] = res_noapoe_with_tiles
             } else {
                 res_prs = res[[1]][[1]]
-                res_prs_with_tiles = makeTiles(res_prs, tiles_prs, assoc_info)
+                res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
                 res[[1]][[1]] = res_prs_with_tiles
             }
+        } else {
+            tiles_prs_df = data.frame(n_tiles = c(), variable = c(), group = c())
         }
 
         # Check if split is requested
@@ -171,22 +177,24 @@
             cat('\n**** Split individuals requested.\n')
             # Check split_info format
             cat('****** Checking split preferences and making splits.\n')
-            split_info = checkSplit(split_info, assoc_info)
+            split_info_df = checkSplit(split_info, assoc_info, sex_strata)
             # check if APOE is considered
             if (excludeAPOE){
                 # Make split for PRS with APOE
                 res_prs = res[[1]][[1]]
                 res_noapoe = res[[2]][[1]]
-                res_prs_with_split = makeSplit(res_prs, split_info, assoc_info)
-                res_noapoe_with_split = makeSplit(res_noapoe, split_info, assoc_info)
+                res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
+                res_noapoe_with_split = makeSplit(res_noapoe, split_info_df, assoc_info)
                 res[[1]][[1]] = res_prs_with_split
                 res[[2]][[1]] = res_noapoe_with_split
             } else {
                 res_prs = res[[1]][[1]]
                 # Make split for PRS
-                res_prs_with_split = makeSplit(res_prs, split_info, assoc_info)
+                res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
                 res[[1]][[1]] = res_prs_with_split
             }
+        } else {
+            split_info_df = data.frame(n_split = c(), variable = c(), thresholds = c())
         }
 
         # Write outputs
@@ -216,6 +224,20 @@
                 assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages, sex_strata)
             } else {
                 assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata)
+            }
+        }
+
+        # Association of the split/tiles
+        if (assoc_split){
+            cat('\n**** Association of the PRS with the split/tiles.\n')
+            if (excludeAPOE){
+                res_apoe = res[[1]]
+                res_noapoe = res[[2]]
+                test_info = assoc_split_tiles_test(res_apoe[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
+                test_info_noapoe = assoc_split_tiles_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", split_info_df, tiles_prs_df)
+            } else {
+                res_prs = res[[1]]
+                test_info = assoc_split_tiles_test(res_prs[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
             }
         }
 

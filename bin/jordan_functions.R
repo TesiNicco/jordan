@@ -1099,7 +1099,7 @@
     }
 
     # Function to check tiles
-    checkTiles = function(tiles_prs, assoc_info){
+    checkTiles = function(tiles_prs, assoc_info, sex_strata){
         # split the tiles by comma
         tiles_prs = unlist(strsplit(tiles_prs, ','))
         # remove spaces
@@ -1116,12 +1116,18 @@
             tile_info = unlist(strsplit(tile, ';'))
             # check if the tile has 3 parts
             if (length(tile_info) != 3){
-                stop(paste0('**** Tile ', tile, ' is not valid. Please provide tiles in the format n_tiles:variable:group.\n\n'), call. = FALSE)
+                stop(paste0('**** Tile ', tile, ' is not valid. Please provide tiles in the format n_tiles;variable;group.\n\n'), call. = FALSE)
             }
             # check if the variable is in the association data
             if (toupper(tile_info[2]) %in% colnames(assoc_info[[2]])){
-                # add to dataframe
-                tiles_info_df = rbind(tiles_info_df, data.frame(n_tiles = as.numeric(tile_info[1]), variable = toupper(tile_info[2]), group = tile_info[3], stringsAsFactors = FALSE))
+                # check for sex stratification
+                if (sex_strata){
+                    # find sexes code
+                    sex_codes = unique(assoc_info[[3]]$sex)
+                    tiles_info_df = rbind(tiles_info_df, data.frame(n_tiles = rep(as.numeric(tile_info[1]), length(sex_codes)), variable = rep(toupper(tile_info[2]), length(sex_codes)), group = rep(tile_info[3], length(sex_codes)), sex = sex_codes, stringsAsFactors = FALSE))
+                } else {
+                    tiles_info_df = rbind(tiles_info_df, data.frame(n_tiles = as.numeric(tile_info[1]), variable = toupper(tile_info[2]), group = tile_info[3], sex = 'all', stringsAsFactors = FALSE))
+                }
             } else {
                 stop(paste0('**** Variable ', tile_info[2], ' not found in the association data. Please check the variable names.\n\n'), call. = FALSE)
             }
@@ -1129,7 +1135,7 @@
         return(tiles_info_df)
     }
 
-    # Function to make tiles
+    # Function to make tiles -- to fix from here
     makeTiles = function(res_prs, tiles_prs, assoc_info){
         # define output dataframe
         res_prs_with_tiles = data.frame()
@@ -1139,32 +1145,45 @@
             n_tiles = tiles_prs$n_tiles[tile]
             variable = tiles_prs$variable[tile]
             group = tiles_prs$group[tile]
+            sex_info = tiles_prs$sex[tile]
             # take the variable from the association info and add it to the PRS results
-            tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+            if (sex_info == 'all'){
+                tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+                tmp_assoc$SEX = 'all'
+            } else {
+                tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable, 'SEX')]
+            }
             tmp_assoc_prs = merge(res_prs, tmp_assoc, by.x = 'iid', by.y = assoc_info[[1]], all.x = TRUE)
             # Check if the reference group is present or not
             if (group == 'NA'){
                 # Compute decile cutoffs from the whole sample
-                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS, probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
+                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[which(tmp_assoc_prs$SEX == sex_info)], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
             } else {
                 # Compute decile cutoffs from the control group
-                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[tmp_assoc_prs[, variable] == group], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
+                tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[which((tmp_assoc_prs[, variable] == group) & (tmp_assoc_prs[, 'SEX'] == sex_info))], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
             }
             # Create a new column in the data frame to assign deciles
-            tmp_assoc_prs[, paste0(n_tiles, '_Tiles_', variable, '_', group)] = cut(tmp_assoc_prs$PRS, breaks = tmp_prs_tiles, labels = 1:n_tiles, include.lowest = TRUE, right = TRUE)
+            tmp_assoc_prs[, paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = cut(tmp_assoc_prs$PRS, breaks = tmp_prs_tiles, labels = 1:n_tiles, include.lowest = TRUE, right = TRUE)
+            # Check for sex stratification -- if so we need to remove the other sex
+            if (sex_info != 'all'){
+                tmp_assoc_prs[which(tmp_assoc_prs$SEX != sex_info), paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = NA
+                tmp_assoc_prs[is.na(tmp_assoc_prs$SEX), paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = NA
+            }
             # add to the results
             if (nrow(res_prs_with_tiles) == 0){
-                res_prs_with_tiles = tmp_assoc_prs[, c('iid', 'PRS', paste0(n_tiles, '_Tiles_', variable, '_', group))]
+                res_prs_with_tiles = tmp_assoc_prs[, c('iid', 'PRS', paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info))]
             } else {
                 # merge with the previous results
-                res_prs_with_tiles = merge(res_prs_with_tiles, tmp_assoc_prs[, c('iid', paste0(n_tiles, '_Tiles_', variable, '_', group))], by = 'iid', all.x = TRUE)
+                res_prs_with_tiles = merge(res_prs_with_tiles, tmp_assoc_prs[, c('iid', paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info))], by = 'iid', all.x = TRUE)
             }
         }
+        # remove sex column
+        res_prs_with_tiles$SEX <- NULL
         return(res_prs_with_tiles)
     }
 
     # Function to check split info
-    checkSplit = function(split_info, assoc_info){
+    checkSplit = function(split_info, assoc_info, sex_strata){
         # split by comma
         split_prs = unlist(strsplit(split_info, ','))
         # remove spaces
@@ -1185,8 +1204,12 @@
             }
             # check if the variable is in the association data
             if (toupper(split_info[1]) %in% toupper(assoc_info[[3]]$variable)){
-                # add to dataframe
-                split_info_df = rbind(split_info_df, data.frame(n_split = length(strsplit(split_info[2], '-')[[1]])+1, variable = toupper(split_info[1]), thresholds = split_info[2], stringsAsFactors = FALSE))
+                if (sex_strata){
+                    sex_codes = unique(assoc_info[[3]]$sex)
+                    split_info_df = rbind(split_info_df, data.frame(n_split = rep(length(strsplit(split_info[2], '-')[[1]])+1, length(sex_codes)), variable = rep(toupper(split_info[1]), length(sex_codes)), thresholds = rep(split_info[2], length(sex_codes)), sex = sex_codes, stringsAsFactors = FALSE))
+                } else {
+                    split_info_df = rbind(split_info_df, data.frame(n_split = length(strsplit(split_info[2], '-')[[1]])+1, variable = toupper(split_info[1]), thresholds = split_info[2], sex = 'all', stringsAsFactors = FALSE))
+                }
             } else {
                 stop(paste0('**** Variable ', tile_info[2], ' not found in the association data. Please check the variable names.\n\n'), call. = FALSE)
             }
@@ -1203,19 +1226,133 @@
             # get the split info
             variable = split_info$variable[spl]
             thresholds = c(-Inf, as.numeric(unlist(strsplit(split_info$thresholds[spl], '-'))), Inf)
+            sex_info = split_info$sex[spl]
             # take the variable from the association info and add it to the PRS results
-            tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+            if (sex_info == 'all'){
+                tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable)]
+                tmp_assoc$SEX = 'all'
+            } else {
+                tmp_assoc = assoc_info[[2]][, c(assoc_info[[1]], variable, 'SEX')]
+            }
             tmp_assoc_prs = merge(res_prs, tmp_assoc, by.x = 'iid', by.y = assoc_info[[1]], all.x = TRUE)
             # Create a new column in the data frame to assign splits
-            tmp_assoc_prs[, paste0('Split_', variable, '_', split_info$thresholds[spl])] = cut(tmp_assoc_prs[, variable], breaks = thresholds, labels = 1:split_info$n_split[spl], include.lowest = TRUE, right = TRUE)
+            tmp_assoc_prs[, paste0('Split_', variable, '_', split_info$thresholds[spl], '_', sex_info)] = cut(tmp_assoc_prs[, variable], breaks = thresholds, labels = 1:split_info$n_split[spl], include.lowest = TRUE, right = TRUE)
+            # check for sex stratification -- if so we need to remove the other sex
+            if (sex_info != 'all'){
+                tmp_assoc_prs[which(tmp_assoc$SEX != sex_info), paste0('Split_', variable, '_', split_info$thresholds[spl], '_', sex_info)] = NA
+                tmp_assoc_prs[is.na(tmp_assoc$SEX), paste0('Split_', variable, '_', split_info$thresholds[spl], '_', sex_info)] = NA
+            }
             # add to the results
             if (nrow(res_prs_with_split) == 0){
                 tmp_assoc_prs <- tmp_assoc_prs[ , !(names(tmp_assoc_prs) %in% variable)]
                 res_prs_with_split = tmp_assoc_prs
             } else {
                 # merge with the previous results
-                res_prs_with_split = merge(res_prs_with_split, tmp_assoc_prs[, c('iid', paste0('Split_', variable, '_', split_info$thresholds[spl]))], by = 'iid', all.x = TRUE)
+                res_prs_with_split = merge(res_prs_with_split, tmp_assoc_prs[, c('iid', paste0('Split_', variable, '_', split_info$thresholds[spl], '_', sex_info))], by = 'iid', all.x = TRUE)
             }
         }
+        # remove sex column
+        res_prs_with_split$SEX <- NULL
         return(res_prs_with_split)
+    }
+
+    # Function to do association of the tiles/splits
+    assoc_split_tiles_test = function(prs_df, assoc_info, outdir, suffix, split_info_df, tiles_prs_df){
+        # extract association info
+        assoc_idname = assoc_info[[1]]
+        assoc_data = assoc_info[[2]]
+        assoc_variables = assoc_info[[3]]
+        assoc_covariates = assoc_info[[4]]
+
+        # merge the prs with association info
+        prs_df_pheno = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+
+        # test tiles
+        if (nrow(tiles_prs_df) > 0){
+            tiles_results = test_tiles(tiles_prs_df, prs_df_pheno, assoc_covariates, assoc_variables, assoc_idname)
+        } else {
+            tiles_results = data.frame()
+        }
+        # test splits
+        if (nrow(split_info_df) > 0){
+            splits_results = test_splits(split_info_df, prs_df_pheno, assoc_covariates, assoc_variables, assoc_idname)
+        } else {
+            splits_results = data.frame()
+        } 
+
+        # write the results
+        write.table(res_prs_with_tiles, paste0(outdir, '/PRS_results_with_tiles', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        write.table(res_prs_with_split, paste0(outdir, '/PRS_results_with_splits', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
+        return(list(tiles_results, splits_results))
+    }
+
+    # Function to test tiles
+    test_tiles = function(tiles_prs_df, prs_df_pheno, assoc_covariates, assoc_variables, assoc_idname){
+        # iterate over the tiles
+        res_tiles = data.frame()
+        for (tile in 1:nrow(tiles_prs_df)){
+            # get variable name
+            tmp_var_name = paste0(tiles_prs_df$n_tiles[tile], '_Tiles_', tiles_prs_df$variable[tile], '_', tiles_prs_df$group[tile], '_', tiles_prs_df$sex[tile])
+            # get variable info from association
+            tmp_var_info = assoc_variables[which(assoc_variables$variable == tiles_prs_df$variable[tile] & assoc_variables$sex == tiles_prs_df$sex[tile]), ]
+            # subset the data for the tile of interest
+            tmp_data = prs_df_pheno[, c('iid', tmp_var_name, tiles_prs_df$variable[tile], assoc_covariates)]
+            colnames(tmp_data)[2] = 'Decile'
+            # make sure decile is a factor
+            tmp_data$Decile = factor(tmp_data$Decile, levels = rev(1:tiles_prs_df$n_tiles[tile]))
+            # define the formula for the model depending on the model type -- check for sex type
+            if (tiles_prs_df$sex[tile] != 'all'){
+                formula = as.formula(paste0(tmp_var_info$variable, ' ~ ', 'Decile + ', paste(assoc_covariates[which(assoc_covariates != 'SEX')], collapse = ' + ')))
+            } else {
+                formula = as.formula(paste0(tmp_var_info$variable, ' ~ ', 'Decile + ', paste(assoc_covariates, collapse = ' + ')))
+            }
+            # define the model 
+            model = suppressWarnings(glm(formula, data = tmp_data, family = tmp_var_info$model))
+            # save summary of the model
+            model_summary = data.frame(summary(model)$coefficients)
+            # clean info 
+            model_summary$Term = rownames(model_summary)
+            model_summary = model_summary[which(model_summary$Term != '(Intercept)'), ]
+            colnames(model_summary) = c('Beta', 'SE', 'Statistic', 'P', 'Term')
+            model_summary$Variable = tmp_var_name
+            rownames(model_summary) = NULL
+            model_summary$Sex = tiles_prs_df$sex[tile]
+            res_tiles = rbind(res_tiles, model_summary)
+        }
+        return(res_tiles)
+    }
+
+    # Function to test splits
+    test_splits = function(split_info_df, prs_df_pheno, assoc_covariates, assoc_variables, assoc_idname){
+        # define container for the results
+        res_splits = data.frame()
+        # iterate over the splits
+        for (spl in 1:nrow(split_info_df)){
+            # get variable name
+            tmp_var_name = paste0('Split_', split_info_df$variable[spl], '_', split_info_df$thresholds[spl], '_', split_info_df$sex[spl])
+            # subset the data for the split of interest
+            tmp_data = prs_df_pheno[, c('iid', tmp_var_name, 'PRS', assoc_covariates)]
+            colnames(tmp_data)[2] = 'Split'
+            # make sure split is a factor
+            tmp_data$Split = factor(tmp_data$Split, levels = 1:split_info_df$n_split[spl])
+            # make formula -- take sex into account
+            if (split_info_df$sex[spl] != 'all'){
+                formula = as.formula(paste0('PRS ~ Split + ', paste(assoc_covariates[which(assoc_covariates != 'SEX')], collapse = ' + ')))
+            } else {
+                formula = as.formula(paste0('PRS ~ Split + ', paste(assoc_covariates, collapse = ' + ')))
+            }
+            # define the model
+            model = suppressWarnings(lm(formula, data = tmp_data))
+            # save summary of the model
+            model_summary = data.frame(summary(model)$coefficients)
+            # clean info 
+            model_summary$Term = rownames(model_summary)
+            model_summary = model_summary[which(model_summary$Term != '(Intercept)'), ]
+            colnames(model_summary) = c('Beta', 'SE', 'Statistic', 'P', 'Term')
+            model_summary$Variable = tmp_var_name
+            rownames(model_summary) = NULL
+            model_summary$Sex = split_info_df$sex[spl]
+            res_splits = rbind(res_splits, model_summary)
+        }
+        return(res_splits)
     }
