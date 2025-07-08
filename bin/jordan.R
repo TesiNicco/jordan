@@ -9,6 +9,7 @@
         library(ggplot2)
         args <- commandArgs(trailingOnly = FALSE)
         library(survminer)
+        library(ggpubr)
     })
 
 # Functions: import functions from jordan_functions.R

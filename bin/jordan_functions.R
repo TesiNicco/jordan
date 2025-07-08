@@ -1,12 +1,14 @@
 # Libraries
-    library(argparse)
-    library(data.table)
-    library(stringr)
-    library(ggplot2)
-    library(survival)
-    library(survminer)
-    library(ggExtra)
-    library(ggpubr)
+    suppressMessages({
+            library(argparse)
+            library(data.table)
+            library(stringr)
+            library(survival)
+            library(ggplot2)
+            args <- commandArgs(trailingOnly = FALSE)
+            library(survminer)
+            library(ggpubr)
+        })
 
 # Functions
     # Function to check output file
