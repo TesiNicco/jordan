@@ -15,11 +15,11 @@ You may need to make the main file executable by typing:
 chmod +x ./jordan/bin/jordan.R
 ```
 
-Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, and `survival`.
+Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, `survival`, `survminer`, and `ggpubr`.
 In case these are not installed, you can install with the following code:
 ```console
 R  
-install.packages(c("argparse", "data.table", "stringr", "ggplot2"))
+install.packages(c("argparse", "data.table", "stringr", "ggplot2", "survival", "survminer", "ggpubr"))
 ```
 In addition to R packages, you need to have [PLINK2](https://www.cog-genomics.org/plink/2.0/) and [PLINK](https://www.cog-genomics.org/plink/1.9/) installed in your system.  
 PLINK and PLINK2 executables are also provided in this package. 
@@ -52,6 +52,11 @@ will display the help message. `jordan` parameters are:
 - `--assoc` (*Optional, default: True*): when present, association analysis will be performed. Association can be done at the PRS level (`--assoc prs`), at the single variant level (`--assoc single`), or both (`--assoc both`). When association is requested, a file including the phenotypes of the individuals to compare should be provided. Also, you will need to specify the `--assoc-var` and `--assoc-cov` parameters.  
 - `--assoc-var` (*Optional, default: True*): when association is requested, please specify here a comma-separated list of the outcome variable(s) you want to associate with PRS or single variants.  
 - `--assoc-cov` (*Optional, default: True*): when association is requested, please specify here a comma-separated list of the covariate(s) you want to include in the association model with PRS or single variants.  
+- `--survival-var` (*Optional, default: False*): when survival analysis, should be performed, please specify here the variable name. Note that the variable should also be included in `--assoc-var`. The variable is intended to be the *time to event*. If *event* should be considered, a variable with `{var_name}_EVENT` should be included in the phenotype file.  
+- `--tiles` (*Optional, default: False*): when present, tile-based analysis will be performed. This analysis divides the PRS distribution into tiles. The number of tiles can be defined. Often, tiles are made relative to a specific subset of samples (e.g healthy controls), and then applied to all individuals. The variable in the phenotype file on which to base the tile-analysis can be defined, as well as the reference group to be used. The format should be `"n_tiles;variable1;reference, n_tiles;variable2;reference"`. For example, indicating `"10;AD;0"` will make 10-tiles PRS based on the PRS distribution of the individuals labeled as 0 in AD column.  
+- `--split` (*Optional, default: False*): when present, a split-based analysis will be performed. This analysis groups individuals based on defined grouping parameters. The format should be `"variable1;threshold1-threshold2-threshold3, variable2;threshold1-threshold2"`. For example, indicating `"MMSE;20-26"` will group individuals based on the MMSE column in three groups: value lower than 20, value between 20 and 26, and value larger than 26.  
+- `--assoc-split-tiles` (*Optional, default: False*): when present, tile-based and/or split-based analyses will be followed by association analysis. This consist in linear regression analysis of the variable(s) indicated in the `--tiles` analysis, using as predictors the tiles grouping. Associations will be corrected for the covariates defined in `--assoc-cov`. For splits, the PRS will be compared across splits in a linear regression model, accounting for the covariates defined in `--assoc-cov`.  
+- `--sex-strata` (*Optional, default: False*): when present, all analyses will be performed in males, females, and the combined set of individuals. This analysis requires that a variable SEX is included in the phenotype data.  
 
 ## PRS and weights
 There can be different types of PRS: (i) *unweighted*, (ii) *weighted*, and (iii) *multiple-weighted*. *Unweighted* PRS are simply the sum of trait-associated alleles, with all variants having the same weight. To do this in jordan, simply set the BETA to 1 in the `--snplist` file to all variants. *Weighted* PRS are the most commonly used PRS, defined as the weighted sum of trait-associated alleles, weighted by an effect size, typically originating from a GWAS study. In `jordan`, PRS calculation is implemented as:  
