@@ -1,12 +1,15 @@
 #!/usr/bin/Rscript
 
 # Libraries
-    library(argparse)
-    library(data.table)
-    library(stringr)
-    library(survival)
-    library(ggplot2)
-    args <- commandArgs(trailingOnly = FALSE)
+    suppressMessages({
+        library(argparse)
+        library(data.table)
+        library(stringr)
+        library(survival)
+        library(ggplot2)
+        args <- commandArgs(trailingOnly = FALSE)
+        library(survminer)
+    })
 
 # Functions: import functions from jordan_functions.R
     # Derive directory of the script
@@ -149,50 +152,60 @@
 
         # Check if tile-based analysis is requested
         if (tiles_prs != FALSE){
-            cat('\n**** Tile-based analysis requested.\n')
-            # Check tiles_prs format
-            cat('****** Checking tiles preferences and making tiles.\n')
-            tiles_prs_df = checkTiles(tiles_prs, assoc_info, sex_strata)
-            # check if APOE is considered
-            if (excludeAPOE){
-                res_prs = res[[1]][[1]]
-                res_noapoe = res[[2]][[1]]
-                # Make tiles for PRS with APOE
-                res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
-                res[[1]][[1]] = res_prs_with_tiles
-                # Make tiles for PRS without APOE
-                res_noapoe_with_tiles = makeTiles(res_noapoe, tiles_prs_df, assoc_info)
-                res[[2]][[1]] = res_noapoe_with_tiles
-            } else {
-                res_prs = res[[1]][[1]]
-                res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
-                res[[1]][[1]] = res_prs_with_tiles
-            }
+            tryCatch({
+                cat('\n**** Tile-based analysis requested.\n')
+                # Check tiles_prs format
+                cat('****** Checking tiles preferences and making tiles.\n')
+                tiles_prs_df = checkTiles(tiles_prs, assoc_info, sex_strata)
+                # check if APOE is considered
+                if (excludeAPOE){
+                    res_prs = res[[1]][[1]]
+                    res_noapoe = res[[2]][[1]]
+                    # Make tiles for PRS with APOE
+                    res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
+                    res[[1]][[1]] = res_prs_with_tiles
+                    # Make tiles for PRS without APOE
+                    res_noapoe_with_tiles = makeTiles(res_noapoe, tiles_prs_df, assoc_info)
+                    res[[2]][[1]] = res_noapoe_with_tiles
+                } else {
+                    res_prs = res[[1]][[1]]
+                    res_prs_with_tiles = makeTiles(res_prs, tiles_prs_df, assoc_info)
+                    res[[1]][[1]] = res_prs_with_tiles
+                }
+            }, error = function(e) {
+                cat('\n**** Tile-based analysis requested, but failed. Make sure you defined all arguments correctly.\n')
+                tiles_prs_df = data.frame(n_tiles = c(), variable = c(), group = c())
+            })
         } else {
             tiles_prs_df = data.frame(n_tiles = c(), variable = c(), group = c())
         }
 
         # Check if split is requested
         if (split_info != FALSE){
-            cat('\n**** Split individuals requested.\n')
-            # Check split_info format
-            cat('****** Checking split preferences and making splits.\n')
-            split_info_df = checkSplit(split_info, assoc_info, sex_strata)
-            # check if APOE is considered
-            if (excludeAPOE){
-                # Make split for PRS with APOE
-                res_prs = res[[1]][[1]]
-                res_noapoe = res[[2]][[1]]
-                res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
-                res_noapoe_with_split = makeSplit(res_noapoe, split_info_df, assoc_info)
-                res[[1]][[1]] = res_prs_with_split
-                res[[2]][[1]] = res_noapoe_with_split
-            } else {
-                res_prs = res[[1]][[1]]
-                # Make split for PRS
-                res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
-                res[[1]][[1]] = res_prs_with_split
-            }
+            tryCatch({
+                cat('\n**** Split individuals requested.\n')
+                # Check split_info format
+                cat('****** Checking split preferences and making splits.\n')
+                split_info_df = checkSplit(split_info, assoc_info, sex_strata)
+                # check if APOE is considered
+                if (excludeAPOE){
+                    # Make split for PRS with APOE
+                    res_prs = res[[1]][[1]]
+                    res_noapoe = res[[2]][[1]]
+                    res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
+                    res_noapoe_with_split = makeSplit(res_noapoe, split_info_df, assoc_info)
+                    res[[1]][[1]] = res_prs_with_split
+                    res[[2]][[1]] = res_noapoe_with_split
+                } else {
+                    res_prs = res[[1]][[1]]
+                    # Make split for PRS
+                    res_prs_with_split = makeSplit(res_prs, split_info_df, assoc_info)
+                    res[[1]][[1]] = res_prs_with_split
+                }
+            }, error = function(e) {
+                cat('\n**** Split individuals requested, but failed. Make sure you defined all arguments correctly.\n')
+                split_info_df = data.frame(n_split = c(), variable = c(), thresholds = c())
+            })
         } else {
             split_info_df = data.frame(n_split = c(), variable = c(), thresholds = c())
         }
@@ -220,25 +233,29 @@
             if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
-                assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata)
-                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages, sex_strata)
+                assoc_test(res_apoe[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata, plt)
+                assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages, sex_strata, plt)
             } else {
-                assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata)
+                assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata, plt)
             }
         }
 
         # Association of the split/tiles
         if (assoc_split){
-            cat('\n**** Association of the PRS with the split/tiles.\n')
-            if (excludeAPOE){
-                res_apoe = res[[1]]
-                res_noapoe = res[[2]]
-                test_info = assoc_split_tiles_test(res_apoe[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
-                test_info_noapoe = assoc_split_tiles_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", split_info_df, tiles_prs_df)
-            } else {
-                res_prs = res[[1]]
-                test_info = assoc_split_tiles_test(res_prs[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
-            }
+            tryCatch({
+                cat('\n**** Association of the PRS with the split/tiles.\n')
+                if (excludeAPOE){
+                    res_apoe = res[[1]]
+                    res_noapoe = res[[2]]
+                    test_info = assoc_split_tiles_test(res_apoe[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
+                    test_info_noapoe = assoc_split_tiles_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", split_info_df, tiles_prs_df)
+                } else {
+                    res_prs = res[[1]]
+                    test_info = assoc_split_tiles_test(res_prs[[1]], assoc_info, outdir, "", split_info_df, tiles_prs_df)
+                }
+            }, error = function(e){
+                cat('\n**** Association of the PRS with the split/tiles requested, but failed. Make sure you defined all arguments correctly.\n')
+            })
         }
 
         # Clean temporary data
@@ -254,13 +271,13 @@
                 res_noapoe = res[[2]]
                 all_freq = res[[4]]
                 # Make density plots
-                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
-                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
+                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
+                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
             } else {
                 res_prs = res[[1]]
                 all_freq = res[[3]]
                 # Make density plots
-                makePlot(res_prs[[1]], res_prs[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file)
+                makePlot(res_prs[[1]], res_prs[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
             }
         }
         

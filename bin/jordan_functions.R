@@ -4,7 +4,9 @@
     library(stringr)
     library(ggplot2)
     library(survival)
+    library(survminer)
     library(ggExtra)
+    library(ggpubr)
 
 # Functions
     # Function to check output file
@@ -461,172 +463,315 @@
     }
 
     # Function to draw plot
-    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data, assoc_info, all_freq, freq, assoc_file){
-        # define title of the plots
-        density_title = ifelse(suffix == "", paste0('PRS based on ', nrow(included_snps), ' SNPs'), paste0('PRS based on ', nrow(included_snps), ' SNPs (APOE excluded)'))
-        snps_title = ifelse(suffix == "", 'Beta of SNPs', 'Beta of SNPs (APOE excluded)')
-        # plot density
-        plt_density = ggplot(data = prs_df, aes(x = PRS, fill = 'red')) + geom_density() + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'none')
-        pdf(paste0(outdir, '/PRS_density', suffix, '.pdf'), height = 7, width = 7)
-        print(plt_density)
-        invisible(dev.off())
-
-        # if assoc_info is not FALSE and there is a binary trait, then plot the PRS vs the binary trait
-        if (assoc_file != FALSE){
-            # check if the trait is binary
-            if (any(grepl('binomial', assoc_info[[3]]$model))){
-                # get the variable of interest
-                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
-                # iterate over the variables of interest
-                for (v in var_interest){
-                    # get the phenotype of interest
-                    ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
-                    # change the value in the v column from 0/1 based on the mapping
-                    pairs <- strsplit(assoc_info[[3]][which(assoc_info[[3]]$variable == v), "mapping"], ";\\s*")[[1]]
-                    kv <- strsplit(pairs, " -> ")
-                    # Change the values
-                    tmp1 = ph_sub[which(ph_sub[, v] == kv[[1]][2]), ]
-                    tmp2 = ph_sub[which(ph_sub[, v] == kv[[2]][2]), ]
-                    tmp1[which(tmp1[, v] == kv[[1]][2]), v] = kv[[1]][1]
-                    tmp2[which(tmp2[, v] == kv[[2]][2]), v] = kv[[2]][1]
-                    ph_sub = rbind(tmp1, tmp2)
-                    # merge with the prs_df
-                    ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
-                    # plot
-                    plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", fill = v)) + geom_density(alpha = 0.6) + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
-                    pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
-                    print(plt_pheno)
+    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df){
+        suppressWarnings({
+            # Plot PRS distribution independently from phenotype -- eventually sex-strata
+            # define title of the plots
+            density_title = ifelse(suffix == "", paste0('PRS based on ', nrow(included_snps), ' SNPs'), paste0('PRS based on ', nrow(included_snps), ' SNPs (APOE excluded)'))
+            snps_title = ifelse(suffix == "", 'Beta of SNPs', 'Beta of SNPs (APOE excluded)')
+            # plot density
+            tryCatch({
+                cat('**** Plotting PRS distribution.\n')
+                suppressMessages({
+                    if (length(assoc_info) >1 & sex_strata == TRUE){
+                        # merge assoc with prs
+                        prs_df_pheno = merge(prs_df[, c('iid', 'PRS')], assoc_info[[2]][, c(assoc_info[[1]], 'SEX')], by.x = 'iid', by.y = assoc_info[[1]], all = T)
+                        prs_df_pheno = rbind(prs_df_pheno, data.frame(iid = prs_df_pheno$iid, PRS = prs_df_pheno$PRS, SEX = 'all'))
+                        plt_density = ggplot(data = prs_df_pheno, aes(x = PRS, fill = SEX)) + geom_density(alpha = 0.5) + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top')
+                    } else {
+                        plt_density = ggplot(data = prs_df, aes(x = PRS, fill = 'red')) + geom_density() + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'none')
+                    }
+                    pdf(paste0(outdir, '/PRS_density', suffix, '.pdf'), height = 7, width = 7)
+                    print(plt_density)
                     invisible(dev.off())
-                }
-            }
-            if (any(grepl('gaussian', assoc_info[[3]]$model))){
-                # get the variable of interest
-                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'gaussian')]
-                # iterate over the variables of interest
-                for (v in var_interest){
-                    # get the phenotype of interest
-                    ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
-                    # merge with the prs_df
-                    ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
-                    # plot
-                    plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab('Polygenic Risk Score') + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
-                    # add marginal density plots using ggMarginal
-                    pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
-                    print(ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5))
-                    invisible(dev.off())
-                }
-            }
-        }
+                })
+            }, error = function(e){
+                cat('** Error in plotting PRS distribution. Skipping this plot.\n')
+            })
 
-        # plot snps
-        # add the missing snps to the included snps
-        # construct ID fields
-        included_snps$ID <- paste(included_snps$CHROM, included_snps$POS, sep = ":")
-        snps_data$ID <- paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep = ":")
-        snps_data$SNP <- paste(snps_data$CHROM, snps_data$POS, sep = ":")
-        # identify missing SNPs
-        missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
-        if (nrow(missing) > 0){
-            excluded <- data.frame(SNP = missing$SNP, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
-            included_snps <- rbind(included_snps[, c('SNP', 'BETA', 'ALLELE', 'OTHER_ALLELE', 'TYPE', 'POS', 'CHROM', 'ID')], excluded)
-        }
-        included_snps$TYPE = factor(included_snps$TYPE, levels = c('Included', 'Excluded'))
-        # order
-        included_snps = included_snps[order(included_snps$TYPE, included_snps$BETA),]
-        # set order
-        included_snps$SNP = factor(included_snps$SNP, levels = unique(included_snps$SNP))
-        # define dynamically the height of the plot
-        base_height = 5
-        height_per_row = 0.125
-        plot_height = max(5, min(60, base_height + nrow(included_snps) * height_per_row))
-        # then the plot
-        plt_snps = ggplot(data = included_snps, aes(y = SNP, x = BETA, color = TYPE)) + geom_point(stat = 'identity', size = 2) + xlab('Beta') + ylab('SNP') + ggtitle(snps_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14)) + scale_color_manual(values = c('Included' = 'navy', 'Excluded' = 'red')) + labs(color = "Type") + scale_x_continuous(expand = expansion(mult = c(0.05, 0.20)))
-        pdf(paste0(outdir, '/PRS_SNPs', suffix, '.pdf'), height = plot_height, width = 7)
-        print(plt_snps)
-        invisible(dev.off())
-
-        # plot frequencies if these were calculated
-        if (freq & nrow(all_freq) > 0){
-            # check if association labels are present
+            # if assoc_info is not FALSE and there is a binary trait, then plot the PRS vs the binary trait
             if (assoc_file != FALSE){
-                # get the variable of interest
-                var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
-                # iterate over the variables of interest
-                for (v in var_interest){
-                    # get data by grepping v _controls or v_cases and end line
-                    v_controls = paste0(v, '_controls$')
-                    v_cases = paste0(v, '_cases$')
-                    # get the columns of interest
-                    v_controls_cols = colnames(all_freq)[grep(v_controls, colnames(all_freq))]
-                    v_cases_cols = colnames(all_freq)[grep(v_cases, colnames(all_freq))]
-                    # get the variable of interest
-                    all_freq = data.frame(all_freq, check.names=F)
-                    ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', v_controls_cols, v_cases_cols)]
-                    # rename columns
-                    colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', paste0(v, '_controls'), paste0(v, '_cases'))
-                    # check if frequency columns are < 0.5 for both v_controls and v_cases, for each line
-                    ph_sub$MINOR_ALLELE = ph_sub$ALT
-                    ph_sub[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5)]
-                    ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')]
-                    ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')]
-                    # define final_ID as ID (MINOR_ALLELE)
-                    ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
-                    # Add risk/protective allele
-                    ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
-                    ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
-                    ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
-                    # reshape to long format -- the AD_controls and AD_cases columns should be combined
-                    # define the ID columns
-                    id_cols <- c('SNPID', 'ID', 'SNP', 'CHROM', 'POS', 'REF', 'ALT', 'MINOR_ALLELE', 'EFFECT_ALLELE', 'BETA', 'Effect')
-                    # create long format
-                    frequencies_long <- reshape(ph_sub_info, varying = setdiff(names(ph_sub_info), id_cols), v.names = "MAF", timevar = "Group", times = setdiff(names(ph_sub_info), id_cols), direction = "long")
-                    # reset rownames if needed
-                    rownames(frequencies_long) <- NULL
-                    # sort by frequency
-                    frequencies_long = frequencies_long[order(frequencies_long$MAF),]
-                    # set the order of the SNPs
-                    frequencies_long$SNP = factor(frequencies_long$SNP, levels = unique(frequencies_long$SNP))
-                    # plot
-                    p4 = ggplot(frequencies_long, aes(x=SNP, y=MAF, color=Group, shape=Group)) + geom_point(size = 3, stat = 'identity') + labs(title="Case/Control Frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(frequencies_long$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16), plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)), shape = guide_legend(override.aes = list(size = 4)))
-                    # set the width of the plot dynamically
-                    base_width = 5
-                    width_per_snp = 0.125
-                    plot_width = max(5, min(60, base_width + nrow(frequencies_long) * width_per_snp))
-                    pdf(paste0(outdir, '/PRS_Frequencies_', v, '.pdf'), height = 7, width = plot_width)
-                    print(p4)
-                    invisible(dev.off())
+                # check if the trait is binary
+                tryCatch({
+                    if (any(grepl('binomial', assoc_info[[3]]$model))){
+                        cat('**** Plotting PRS distribution vs. phenotype.\n')
+                        # get the variable of interest
+                        var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
+                        # iterate over the variables of interest
+                        for (v in var_interest){
+                            # get the phenotype of interest
+                            ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
+                            # change the value in the v column from 0/1 based on the mapping
+                            pairs <- strsplit(assoc_info[[3]][which(assoc_info[[3]]$variable == v), "mapping"], ";\\s*")[[1]]
+                            kv <- strsplit(pairs, " -> ")
+                            # Change the values
+                            tmp1 = ph_sub[which(ph_sub[, v] == kv[[1]][2]), ]
+                            tmp2 = ph_sub[which(ph_sub[, v] == kv[[2]][2]), ]
+                            tmp1[which(tmp1[, v] == kv[[1]][2]), v] = kv[[1]][1]
+                            tmp2[which(tmp2[, v] == kv[[2]][2]), v] = kv[[2]][1]
+                            ph_sub = rbind(tmp1, tmp2)
+                            # merge with the prs_df
+                            ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                            # plot
+                            suppressMessages({
+                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", fill = v)) + geom_density(alpha = 0.6) + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                                pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
+                                print(plt_pheno)
+                                invisible(dev.off())
+                            })
+                        }
+                    }
+                    if (any(grepl('gaussian', assoc_info[[3]]$model))){
+                        # get the variable of interest
+                        var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'gaussian')]
+                        # iterate over the variables of interest
+                        for (v in var_interest){
+                            # get the phenotype of interest
+                            ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
+                            # merge with the prs_df
+                            ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                            # plot
+                            suppressMessages({
+                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab('Polygenic Risk Score') + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                                # add marginal density plots using ggMarginal
+                                pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
+                                print(ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5))
+                                invisible(dev.off())
+                            })
+                        }
+                    }
+                }, error = function(e){
+                    cat('** Error in plotting PRS vs phenotype. Skipping this plot.\n')
+                })
+            }
+
+            # plot snps
+            # add the missing snps to the included snps
+            # construct ID fields
+            tryCatch({
+                cat('**** SNP information.\n')
+                included_snps$ID <- paste(included_snps$CHROM, included_snps$POS, sep = ":")
+                snps_data$ID <- paste(stringr::str_replace_all(snps_data$CHROM, 'chr', ''), snps_data$POS, sep = ":")
+                snps_data$SNP <- paste(snps_data$CHROM, snps_data$POS, sep = ":")
+                # identify missing SNPs
+                missing <- snps_data[!(snps_data$ID %in% included_snps$ID), ]
+                if (nrow(missing) > 0){
+                    excluded <- data.frame(SNP = missing$SNP, BETA = missing$BETA, ALLELE = missing$EFFECT_ALLELE, OTHER_ALLELE = missing$OTHER_ALLELE, TYPE = 'Excluded', POS = missing$POS, CHROM = missing$CHROM, ID = missing$ID)
+                    included_snps <- rbind(included_snps[, c('SNP', 'BETA', 'ALLELE', 'OTHER_ALLELE', 'TYPE', 'POS', 'CHROM', 'ID')], excluded)
                 }
-            } else {
-                # subset of data
-                all_freq = data.frame(all_freq, check.names=F)
-                ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')]
-                # rename columns
-                colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')
-                # add minor allele
-                ph_sub$MINOR_ALLELE = ph_sub$ALT
-                ph_sub[which(ph_sub$ALT_FREQS > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub$ALT_FREQS > 0.5)]
-                ph_sub$MAF = ifelse(ph_sub$ALT_FREQS > 0.5, 1 - ph_sub$ALT_FREQS, ph_sub$ALT_FREQS)
-                # define final_ID as ID (MINOR_ALLELE)
-                ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
-                # Add risk/protective allele
-                ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
-                ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
-                ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
-                # sort
-                ph_sub_info = ph_sub_info[order(ph_sub_info$MAF),]
-                # set the order of the SNPs
-                ph_sub_info$SNP = factor(ph_sub_info$SNP, levels = unique(ph_sub_info$SNP))
-                # plot
-                p4 = ggplot(data = ph_sub_info, aes(x=SNP, y=MAF)) + geom_point(size = 3, col = 'coral') + labs(title="All samples frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(ph_sub_info$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none', plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)))
-                # set the width of the plot dynamically
-                base_width = 5
-                width_per_snp = 0.15
-                plot_width = max(5, min(60, base_width + nrow(ph_sub_info) * width_per_snp))
-                pdf(paste0(outdir, '/PRS_Frequencies.pdf'), height = 7, width = plot_width)
-                print(p4)
-                invisible(dev.off())
-            } 
-        }
+                included_snps$TYPE = factor(included_snps$TYPE, levels = c('Included', 'Excluded'))
+                # order
+                included_snps = included_snps[order(included_snps$TYPE, included_snps$BETA),]
+                # set order
+                included_snps$SNP = factor(included_snps$SNP, levels = unique(included_snps$SNP))
+                # define dynamically the height of the plot
+                base_height = 5
+                height_per_row = 0.125
+                plot_height = max(5, min(60, base_height + nrow(included_snps) * height_per_row))
+                # then the plot
+                suppressMessages({
+                    plt_snps = ggplot(data = included_snps, aes(y = SNP, x = BETA, color = TYPE)) + geom_point(stat = 'identity', size = 2) + xlab('Beta') + ylab('SNP') + ggtitle(snps_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14)) + scale_color_manual(values = c('Included' = 'navy', 'Excluded' = 'red')) + labs(color = "Type") + scale_x_continuous(expand = expansion(mult = c(0.05, 0.20)))
+                    pdf(paste0(outdir, '/PRS_SNPs', suffix, '.pdf'), height = plot_height, width = 7)
+                    print(plt_snps)
+                    invisible(dev.off())
+                })
+            }, error = function(e){
+                cat('** Error in plotting SNPs. Skipping this plot.\n')
+            })
+
+            # plot frequencies if these were calculated
+            if (freq & nrow(all_freq) > 0){
+                # check if association labels are present
+                if (assoc_file != FALSE){
+                    tryCatch({
+                        cat('**** Plotting SNP frequencies vs. phenotype.\n')
+                        # get the variable of interest
+                        var_interest = assoc_info[[3]]$variable[which(assoc_info[[3]]$mode == 'binomial')]
+                        # iterate over the variables of interest
+                        for (v in var_interest){
+                            # get data by grepping v _controls or v_cases and end line
+                            v_controls = paste0(v, '_controls$')
+                            v_cases = paste0(v, '_cases$')
+                            # get the columns of interest
+                            v_controls_cols = colnames(all_freq)[grep(v_controls, colnames(all_freq))]
+                            v_cases_cols = colnames(all_freq)[grep(v_cases, colnames(all_freq))]
+                            # get the variable of interest
+                            all_freq = data.frame(all_freq, check.names=F)
+                            ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', v_controls_cols, v_cases_cols)]
+                            # rename columns
+                            colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', paste0(v, '_controls'), paste0(v, '_cases'))
+                            # check if frequency columns are < 0.5 for both v_controls and v_cases, for each line
+                            ph_sub$MINOR_ALLELE = ph_sub$ALT
+                            ph_sub[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub[, paste0(v, '_controls')] > 0.5 & ph_sub[, paste0(v, '_cases')] > 0.5)]
+                            ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_controls')]
+                            ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')] = 1 - ph_sub[which(ph_sub$ALT != ph_sub$MINOR_ALLELE), paste0(v, '_cases')]
+                            # define final_ID as ID (MINOR_ALLELE)
+                            ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
+                            # Add risk/protective allele
+                            ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
+                            ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
+                            ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
+                            # reshape to long format -- the AD_controls and AD_cases columns should be combined
+                            # define the ID columns
+                            id_cols <- c('SNPID', 'ID', 'SNP', 'CHROM', 'POS', 'REF', 'ALT', 'MINOR_ALLELE', 'EFFECT_ALLELE', 'BETA', 'Effect')
+                            # create long format
+                            frequencies_long <- reshape(ph_sub_info, varying = setdiff(names(ph_sub_info), id_cols), v.names = "MAF", timevar = "Group", times = setdiff(names(ph_sub_info), id_cols), direction = "long")
+                            # reset rownames if needed
+                            rownames(frequencies_long) <- NULL
+                            # sort by frequency
+                            frequencies_long = frequencies_long[order(frequencies_long$MAF),]
+                            # set the order of the SNPs
+                            frequencies_long$SNP = factor(frequencies_long$SNP, levels = unique(frequencies_long$SNP))
+                            # plot
+                            suppressMessages({
+                                p4 = ggplot(frequencies_long, aes(x=SNP, y=MAF, color=Group, shape=Group)) + geom_point(size = 3, stat = 'identity') + labs(title="Case/Control Frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(frequencies_long$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16), plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)), shape = guide_legend(override.aes = list(size = 4)))
+                                # set the width of the plot dynamically
+                                base_width = 5
+                                width_per_snp = 0.125
+                                plot_width = max(5, min(60, base_width + nrow(frequencies_long) * width_per_snp))
+                                pdf(paste0(outdir, '/PRS_Frequencies_', v, '.pdf'), height = 7, width = plot_width)
+                                print(p4)
+                                invisible(dev.off())
+                            })
+                        }
+                    }, error = function(e){
+                        cat('** Error in plotting frequencies for case-control. Skipping this plot.\n')
+                    })
+                } else {
+                    tryCatch({
+                        cat('**** Plotting SNP frequencies.\n')
+                        # subset of data
+                        all_freq = data.frame(all_freq, check.names=F)
+                        ph_sub = all_freq[, c('ID', '#CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')]
+                        # rename columns
+                        colnames(ph_sub) = c('ID', 'CHROM', 'POS', 'REF', 'ALT', 'ALT_FREQS')
+                        # add minor allele
+                        ph_sub$MINOR_ALLELE = ph_sub$ALT
+                        ph_sub[which(ph_sub$ALT_FREQS > 0.5), 'MINOR_ALLELE'] = ph_sub$REF[which(ph_sub$ALT_FREQS > 0.5)]
+                        ph_sub$MAF = ifelse(ph_sub$ALT_FREQS > 0.5, 1 - ph_sub$ALT_FREQS, ph_sub$ALT_FREQS)
+                        # define final_ID as ID (MINOR_ALLELE)
+                        ph_sub$SNP = paste0(ph_sub$ID, ' (', ph_sub$MINOR_ALLELE, ")")
+                        # Add risk/protective allele
+                        ph_sub$SNPID = paste(ph_sub$CHROM, ph_sub$POS, sep = ":")
+                        ph_sub_info = merge(ph_sub, snps_data[, c('SNP', 'EFFECT_ALLELE', 'BETA')], by.x = 'SNPID', by.y = 'SNP')
+                        ph_sub_info$Effect = ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Risk', ifelse(ph_sub_info$MINOR_ALLELE == ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA <0, 'Protective', ifelse(ph_sub_info$MINOR_ALLELE != ph_sub_info$EFFECT_ALLELE & ph_sub_info$BETA >0, 'Protective', 'Risk')))
+                        # sort
+                        ph_sub_info = ph_sub_info[order(ph_sub_info$MAF),]
+                        # set the order of the SNPs
+                        ph_sub_info$SNP = factor(ph_sub_info$SNP, levels = unique(ph_sub_info$SNP))
+                        # plot
+                        suppressMessages({
+                            p4 = ggplot(data = ph_sub_info, aes(x=SNP, y=MAF)) + geom_point(size = 3, col = 'coral') + labs(title="All samples frequencies", x="SNPs", y="Minor Allele Frequency", caption="**<span style='color:navy;'>Blue</span>** labels indicate risk-increasing alleles, **<span style='color:orange;'>Orange</span>** labels indicate protective alleles") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = ggtext::element_markdown(size = 13, angle = 60, hjust = 1, vjust = 1, color = ifelse(ph_sub_info$Effect == "Risk", "navy", "orange")), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none', plot.caption = ggtext::element_markdown(size = 12, hjust = 0.5)) + guides(color = guide_legend(override.aes = list(size = 4)))
+                            # set the width of the plot dynamically
+                            base_width = 5
+                            width_per_snp = 0.15
+                            plot_width = max(5, min(60, base_width + nrow(ph_sub_info) * width_per_snp))
+                            pdf(paste0(outdir, '/PRS_Frequencies.pdf'), height = 7, width = plot_width)
+                            print(p4)
+                            invisible(dev.off())
+                        })
+                    }, error = function(e){
+                        cat('** Error in plotting frequencies. Skipping this plot.\n')
+                    })
+                }
+            }
+
+            # plot tiles
+            if (nrow(tiles_prs_df) >0){
+                tryCatch({
+                    cat('**** Plotting PRS tiles.\n')
+                    # add tile names
+                    tiles_prs_df$tile_name = paste0(tiles_prs_df$n_tiles, '_Tiles_', tiles_prs_df$variable, '_', tiles_prs_df$group, '_', tiles_prs_df$sex)
+                    # density plot lists
+                    plotlist = list()
+                    proplist = list()
+                    # iterate over the tiles
+                    for (i in 1:nrow(tiles_prs_df)){
+                        # get data of interest
+                        tmp_data = prs_df[, c('iid', 'PRS', tiles_prs_df$tile_name[i])]
+                        # add phenotype of interest
+                        tmp_pheno = assoc_info[[2]][, c(assoc_info[[1]], tiles_prs_df$variable[i])]
+                        # merge data
+                        tmp_data = merge(tmp_data, tmp_pheno, by.x = 'iid', by.y = assoc_info[[1]], all = T)
+                        # rename columns
+                        colnames(tmp_data) = c('iid', 'PRS', 'tile', 'variable')
+                        # density title
+                        tmp_title = paste(tiles_prs_df$n_tiles[i], ' tiles of PRS~', tiles_prs_df$variable[i], ' (', tiles_prs_df$group[i], ') (Sex=', tiles_prs_df$sex[i], ')', sep = '')
+                        tmp_data$variable = factor(tmp_data$variable)
+                        # find deciles
+                        prs_deciles = c()
+                        for (x in 1:max(as.numeric(as.character(tmp_data$tile)), na.rm = TRUE)){
+                            tmp = tmp_data[which(tmp_data$tile == x), 'PRS']
+                            prs_deciles = c(prs_deciles, max(tmp))
+                        }
+                        # find proportions
+                        prs_summary = data.frame(table(tmp_data$tile, tmp_data$variable))
+                        colnames(prs_summary) = c('Tile', 'Variable', 'Count')
+                        totals <- tapply(prs_summary$Count, prs_summary$Variable, sum)
+                        prs_summary$Proportion <- prs_summary$Count / totals[as.character(prs_summary$Variable)]
+                        # plot
+                        suppressMessages({
+                            # density plot with dashed lines indicating tiles
+                            plt_density = ggplot(tmp_data[!is.na(tmp_data$tile),], aes(x=PRS, fill=variable)) + geom_density(alpha=0.5, bw = 0.15) + scale_fill_manual(values=c("#FF9999", "#66B3FF")) + labs(title=tmp_title, x="PRS", y="Density") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16)) + geom_vline(xintercept = as.numeric(prs_deciles), linetype = "dashed", color = "red")
+                            # proportion plot
+                            prp_plot = ggplot(prs_summary, aes(x=Tile, y=Proportion, fill=Variable)) + geom_bar(stat='identity', position='dodge', width=0.7, alpha = 0.7) + labs(title="Proportions per decile and group", x="Decile", y="Proportion") + scale_fill_manual(values=c("#FF9999", "#66B3FF")) + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16))
+                            # add the plots to the list
+                            plotlist[[i]] = plt_density
+                            proplist[[i]] = prp_plot
+                        })
+                    }
+                    # save the plots
+                    pdf(paste0(outdir, '/PRS_Tiles', suffix, '.pdf'), height = 14, width = 7*length(plotlist))
+                    allplots = c(plotlist, proplist)
+                    suppressMessages({
+                        combined = ggarrange(plotlist = allplots, ncol = length(plotlist), nrow = 2, common.legend = FALSE)
+                        print(combined)
+                        invisible(dev.off())
+                    })                    
+                }, error = function(e){
+                    cat('** Error in plotting tiles. Skipping this plot.\n')
+                })
+            }
+
+            # plot splits
+            if (nrow(split_info_df) >0){
+                tryCatch({
+                    cat('**** Plotting splits.\n')
+                    # add split names
+                    split_info_df$split_name = paste0('Split_', split_info_df$variable, '_', split_info_df$thresholds, '_', split_info_df$sex)
+                    # define container for plots
+                    plotlist = list()
+                    # iterate over the splits
+                    for (i in 1:nrow(split_info_df)){
+                        # get data of interest
+                        tmp_data = prs_df[, c('iid', 'PRS', split_info_df$split_name[i])]
+                        # add phenotype of interest
+                        tmp_pheno = assoc_info[[2]][, c(assoc_info[[1]], split_info_df$variable[i])]
+                        # merge data
+                        tmp_data = merge(tmp_data, tmp_pheno, by.x = 'iid', by.y = assoc_info[[1]], all = T)
+                        # rename columns
+                        colnames(tmp_data) = c('iid', 'PRS', 'split', 'variable')
+                        # density title
+                        tmp_title = paste0('PRS across ', split_info_df$n_split[i], ' splits of ', split_info_df$variable[i], ' (Sex=', split_info_df$sex[i], ')', sep = '')
+                        # plot -- violin and boxplots
+                        suppressMessages({
+                            plt = ggplot(tmp_data[!is.na(tmp_data$split),], aes(x = split, y = PRS, fill = split)) + geom_violin(alpha = 0.5) + geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) + scale_fill_brewer(palette = "Set3") + labs(title = tmp_title, x = "Splits", y = "PRS") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none')
+                        })
+                        # add the plot to the list
+                        plotlist[[i]] = plt
+                    }
+                    # save the plots
+                    pdf(paste0(outdir, '/PRS_Splits', suffix, '.pdf'), height = 7, width = 7*length(plotlist))
+                    suppressMessages({
+                        combined = ggarrange(plotlist = plotlist, ncol = length(plotlist), nrow = 1, common.legend = FALSE)
+                        print(combined)
+                        invisible(dev.off())
+                    })
+                }, error = function(e){
+                    cat('** Error in plotting splits. Skipping this plot.\n')
+                })
+            }
+        })
     }
 
     # Function to write log file
@@ -866,7 +1011,7 @@
     }
 
     # Function to run association
-    assoc_test = function(prs_df, assoc_info, outdir, suffix, assoc_mode, dosages, sex_strata){
+    assoc_test = function(prs_df, assoc_info, outdir, suffix, assoc_mode, dosages, sex_strata, plt){
         # extract association info
         assoc_idname = assoc_info[[1]]
         assoc_data = assoc_info[[2]]
@@ -895,7 +1040,7 @@
         # check which associations need to be done and do them
         if (assoc_mode == 'prs'){
             cat('**** Running association for PRS.\n')
-            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
+            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix, plt, outdir)
             # write the results
             write.table(assoc_results_prs, paste0(outdir, '/association_results_PRS', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
         
@@ -907,7 +1052,7 @@
         
         } else {
             cat('**** Running association for both PRS and single-variant.\n')
-            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix)
+            assoc_results_prs = prs_assoc(prs_df_pheno, assoc_variables, assoc_covariates, suffix, plt, outdir)
             assoc_results_single = singleVar_assoc(dosages_pheno, assoc_variables, assoc_covariates, suffix, snp_names)
             # write the results
             write.table(assoc_results_prs, paste0(outdir, '/association_results_PRS', suffix, '.txt'), quote = F, row.names = F, sep = "\t")
@@ -916,7 +1061,7 @@
     }
 
     # Function to run association for the PRS
-    prs_assoc = function(prs_df_pheno, assoc_variables, assoc_covariates, suffix){
+    prs_assoc = function(prs_df_pheno, assoc_variables, assoc_covariates, suffix, plt, outdir){
         # Scale PRS before association
         prs_df_pheno$PRS = scale(prs_df_pheno$PRS)
         # Define container for the results
@@ -945,6 +1090,8 @@
             covar_names = assoc_covariates
             # get the mapping
             var_mapping = assoc_variables$mapping[i]
+            # initialize the survival object
+            surv_obj = NULL
             # check if it is survival analysis
             if (model_type == 'cox'){
                 # take the event if present
@@ -993,11 +1140,38 @@
             # add to the results -- check if it is survival analysis
             if (model_type == 'cox'){
                 assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[1, 1], SE_PRS = summary(model)$coefficients[1, 3], P_PRS = summary(model)$coefficients[1, 5], Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(prs_df_pheno_sex) - sum(is.na(prs_df_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = assoc_variables$sex[i], stringsAsFactors = F))
+                # if plot was requested, make the survival plot now
+                if (plt != FALSE){
+                    makeSurvPlot(prs_df_pheno_sex, suffix, outdir, assoc_variables$variable[i], assoc_variables$sex[i], surv_obj)
+                }
             } else {
                 assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = var_name, Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[2, 1], SE_PRS = summary(model)$coefficients[2, 2], P_PRS = summary(model)$coefficients[2, 4], Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = model$converged, N_effective = nrow(prs_df_pheno_sex) - sum(is.na(prs_df_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = assoc_variables$sex[i], stringsAsFactors = F))
             }
         }
         return(assoc_results)
+    }
+
+    # Function to make survival plot
+    makeSurvPlot = function(prs_df_pheno_sex, suffix, outdir, variable, sexinfo, surv_obj){
+        suppressMessages({
+            suppressWarnings({
+                # split by median value of PRS
+                prs_df_pheno_sex$PRS_group <- ifelse(prs_df_pheno_sex$PRS >= median(prs_df_pheno_sex$PRS, na.rm = TRUE), "High", "Low")
+                prs_df_pheno_sex$PRS_group <- factor(prs_df_pheno_sex$PRS_group, levels = c("Low", "High"))
+                # bind survival object as column
+                prs_df_pheno_sex$.__surv__ <- surv_obj
+                # Fit model using the injected survival column
+                fit <- survfit(.__surv__ ~ PRS_group, data = prs_df_pheno_sex)
+                # Custom theme
+                custom_theme <- theme_minimal() + theme(legend.position = "bottom", axis.text = element_text(size = 14), axis.title = element_text(size = 16), legend.text = element_text(size = 14), legend.title = element_text(size = 16))
+                # Plot
+                plt = ggsurvplot(fit, data = prs_df_pheno_sex, risk.table = TRUE, pval = TRUE, conf.int = TRUE, risk.table.height = 0.25, ggtheme = custom_theme, title = paste0('Survival curves for PRS', suffix, ' ~ ', variable, '(Sex=', sexinfo, ')'))
+                # Save the plot
+                pdf(paste0(outdir, '/survival_plot_', variable, '_', sexinfo, suffix, '.pdf'), width = 8, height = 8)
+                print(plt, newpage = FALSE)
+                dev.off()
+            })
+        })
     }
 
     # Function to run association for the single-variants
@@ -1137,6 +1311,8 @@
 
     # Function to make tiles -- to fix from here
     makeTiles = function(res_prs, tiles_prs, assoc_info){
+        # read mapping info from the association info
+        mapping_info = assoc_info[[3]]
         # define output dataframe
         res_prs_with_tiles = data.frame()
         # iterate over tiles
@@ -1145,6 +1321,7 @@
             n_tiles = tiles_prs$n_tiles[tile]
             variable = tiles_prs$variable[tile]
             group = tiles_prs$group[tile]
+            orig_group = tiles_prs$group[tile]
             sex_info = tiles_prs$sex[tile]
             # take the variable from the association info and add it to the PRS results
             if (sex_info == 'all'){
@@ -1159,22 +1336,32 @@
                 # Compute decile cutoffs from the whole sample
                 tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[which(tmp_assoc_prs$SEX == sex_info)], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
             } else {
+                # Find the control group
+                tmp_assoc_info = mapping_info[which(mapping_info$variable == variable & mapping_info$sex == sex_info),]
+                if (tmp_assoc_info$model == 'binomial'){
+                    tmp_mapping_orig_controls = str_split_fixed(str_split_fixed(tmp_assoc_info$mapping, ';', 2)[1], ' ', 3)[1]
+                    tmp_mapping_new_controls = str_split_fixed(str_split_fixed(tmp_assoc_info$mapping, ';', 2)[1], ' ', 3)[3]
+                    tmp_mapping_orig_cases = str_split_fixed(str_split_fixed(tmp_assoc_info$mapping, ';', 2)[2], ' ', 4)[2]
+                    tmp_mapping_new_cases = str_split_fixed(str_split_fixed(tmp_assoc_info$mapping, ';', 2)[2], ' ', 4)[4]
+                    # check if the group is
+                    group = ifelse(group == tmp_mapping_orig_controls, tmp_mapping_new_controls, tmp_mapping_new_cases)
+                }
                 # Compute decile cutoffs from the control group
                 tmp_prs_tiles = quantile(tmp_assoc_prs$PRS[which((tmp_assoc_prs[, variable] == group) & (tmp_assoc_prs[, 'SEX'] == sex_info))], probs = seq(0, 1, by = 1/n_tiles), na.rm = TRUE)
             }
             # Create a new column in the data frame to assign deciles
-            tmp_assoc_prs[, paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = cut(tmp_assoc_prs$PRS, breaks = tmp_prs_tiles, labels = 1:n_tiles, include.lowest = TRUE, right = TRUE)
+            tmp_assoc_prs[, paste0(n_tiles, '_Tiles_', variable, '_', orig_group, '_', sex_info)] = cut(tmp_assoc_prs$PRS, breaks = tmp_prs_tiles, labels = 1:n_tiles, include.lowest = TRUE, right = TRUE)
             # Check for sex stratification -- if so we need to remove the other sex
             if (sex_info != 'all'){
-                tmp_assoc_prs[which(tmp_assoc_prs$SEX != sex_info), paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = NA
-                tmp_assoc_prs[is.na(tmp_assoc_prs$SEX), paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info)] = NA
+                tmp_assoc_prs[which(tmp_assoc_prs$SEX != sex_info), paste0(n_tiles, '_Tiles_', variable, '_', orig_group, '_', sex_info)] = NA
+                tmp_assoc_prs[is.na(tmp_assoc_prs$SEX), paste0(n_tiles, '_Tiles_', variable, '_', orig_group, '_', sex_info)] = NA
             }
             # add to the results
             if (nrow(res_prs_with_tiles) == 0){
-                res_prs_with_tiles = tmp_assoc_prs[, c('iid', 'PRS', paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info))]
+                res_prs_with_tiles = tmp_assoc_prs[, c('iid', 'PRS', paste0(n_tiles, '_Tiles_', variable, '_', orig_group, '_', sex_info))]
             } else {
                 # merge with the previous results
-                res_prs_with_tiles = merge(res_prs_with_tiles, tmp_assoc_prs[, c('iid', paste0(n_tiles, '_Tiles_', variable, '_', group, '_', sex_info))], by = 'iid', all.x = TRUE)
+                res_prs_with_tiles = merge(res_prs_with_tiles, tmp_assoc_prs[, c('iid', paste0(n_tiles, '_Tiles_', variable, '_', orig_group, '_', sex_info))], by = 'iid', all.x = TRUE)
             }
         }
         # remove sex column
