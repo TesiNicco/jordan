@@ -31,8 +31,6 @@
     # Flag-like arguments
         # Dosage
         parser$add_argument("--dosage", help="When present, it is assumed data to be imputed. The information is used to read genotypes in PLINK.", action = "store_true", default = FALSE)
-        # Plot
-        parser$add_argument("--plot", help="When present, density plot is saved.", default = FALSE, action = "store_true")
         # Multiple input files
         parser$add_argument("--multiple", help="When present, multiple PLINK files will be used. Jordan will then look at all files with the same extension in the same input directory. CURRENTLY, ONLY PLINK FILES ARE SUPPORTED.", default = FALSE, action = "store_true")
         # Exclude APOE
@@ -46,6 +44,8 @@
         # Sex-stratified analysis
         parser$add_argument("--sex-strata", help="When present, the association analyses will be conducted in males, females, and the combined group. Make sure that a variable SEX or sex is present in the association file.", default = FALSE, action = "store_true")
     # Optional arguments
+        # Plot
+        parser$add_argument("--plot", nargs = "?", const = "default", default = NULL, help = "If specified, saves a plot. Optionally takes 'exclude_NA' to exclude NAs from the plots (Default: include all).")        
         # Additional weight for the prs
         parser$add_argument("--addWeight", help="Additional weight to be applied on top of the BETA, for each SNP. This is useful when, for example, foing pathway-specific PRS. The SNP will be weighted by the BETA and by the optional weight (PRS_snp = SNP_dosage * SNP_beta * SNP_additionalWeight). To enable, insert the name of the column to be used. The column must be present in the snplist file.", default = FALSE)
         # Minor allele frequency filter
@@ -89,6 +89,7 @@
         assoc_split = args$assoc_split_tiles
 
     # Print arguments on screen
+        cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
         cat("\nSNPs file: ", snps_file)
@@ -265,23 +266,29 @@
         system(paste0('rm ', outdir, '/dosage*'), ignore.stdout = TRUE, ignore.stderr = TRUE)
             
         # Check if plot needs to be done
-        if (plt == TRUE){
-            cat('**** Making plots.\n')
+        if (!is.null(plt)) {
+            if (plt == "exclude_NA") {
+                cat("**** Making plots and excluding NAs.\n")
+                na_beh = "exclude"
+            } else {
+                cat("**** Making plots including all samples.\n")
+                na_beh = "include"
+            }
             if (excludeAPOE){
                 res_apoe = res[[1]]
                 res_noapoe = res[[2]]
                 all_freq = res[[4]]
-                # Make density plots
-                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
-                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
+                # Make plots
+                makePlot(res_apoe[[1]], res_apoe[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df, na_beh)
+                makePlot(res_noapoe[[1]], res_noapoe[[2]], "_noAPOE", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df, na_beh)
             } else {
                 res_prs = res[[1]]
                 all_freq = res[[3]]
-                # Make density plots
-                makePlot(res_prs[[1]], res_prs[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df)
+                # Make plots
+                makePlot(res_prs[[1]], res_prs[[2]], "", outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df, na_beh)
             }
         }
-        
+
         # end message
         cat('\n\n** Analysis over. Ciao! \n\n')
     

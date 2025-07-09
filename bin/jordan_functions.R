@@ -465,11 +465,11 @@
     }
 
     # Function to draw plot
-    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df){
+    makePlot = function(prs_df, included_snps, suffix, outdir, snps_data, assoc_info, all_freq, freq, assoc_file, sex_strata, tiles_prs_df, split_info_df, na_be){
         suppressWarnings({
             # Plot PRS distribution independently from phenotype -- eventually sex-strata
             # define title of the plots
-            density_title = ifelse(suffix == "", paste0('PRS based on ', nrow(included_snps), ' SNPs'), paste0('PRS based on ', nrow(included_snps), ' SNPs (APOE excluded)'))
+            density_title = ifelse(suffix == "", paste0('PRS ~ ', nrow(included_snps), ' SNPs ~ All'), paste0('PRS ~ ', nrow(included_snps), ' SNPs (APOE excluded) ~ All'))
             snps_title = ifelse(suffix == "", 'Beta of SNPs', 'Beta of SNPs (APOE excluded)')
             # plot density
             tryCatch({
@@ -479,7 +479,13 @@
                         # merge assoc with prs
                         prs_df_pheno = merge(prs_df[, c('iid', 'PRS')], assoc_info[[2]][, c(assoc_info[[1]], 'SEX')], by.x = 'iid', by.y = assoc_info[[1]], all = T)
                         prs_df_pheno = rbind(prs_df_pheno, data.frame(iid = prs_df_pheno$iid, PRS = prs_df_pheno$PRS, SEX = 'all'))
-                        plt_density = ggplot(data = prs_df_pheno, aes(x = PRS, fill = SEX)) + geom_density(alpha = 0.5) + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top')
+                        # check if nas need to be excluded
+                        if (na_beh == 'exclude'){
+                            tmp = prs_df_pheno[!is.na(prs_df_pheno$SEX),]
+                        } else {
+                            tmp = prs_df_pheno
+                        }
+                        plt_density = ggplot(data = tmp, aes(x = PRS, fill = SEX)) + geom_density(alpha = 0.5) + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top')
                     } else {
                         plt_density = ggplot(data = prs_df, aes(x = PRS, fill = 'red')) + geom_density() + theme(legend.position = 'none') + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(density_title) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'none')
                     }
@@ -514,9 +520,14 @@
                             ph_sub = rbind(tmp1, tmp2)
                             # merge with the prs_df
                             ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                            # check if nas need to be excluded
+                            if (na_beh == 'exclude'){
+                                ph_sub_prs <- ph_sub_prs[!is.na(ph_sub_prs[[v]]), ]
+                            }
+                            prs_title = ifelse(suffix == "", 'PRS', 'PRS (APOE excluded)')
                             # plot
                             suppressMessages({
-                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", fill = v)) + geom_density(alpha = 0.6) + xlab('Polygenic Risk Score') + ylab('Density') + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", fill = v)) + geom_density(alpha = 0.6) + xlab(prs_title) + ylab('Density') + ggtitle(v) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
                                 pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
                                 print(plt_pheno)
                                 invisible(dev.off())
@@ -532,9 +543,17 @@
                             ph_sub = assoc_info[[2]][, c(assoc_info[[1]], v)]
                             # merge with the prs_df
                             ph_sub_prs = merge(ph_sub, prs_df, by.x = assoc_info[[1]], by.y = 'iid', all = T)
+                            # check if nas need to be excluded
+                            if (na_beh == 'exclude'){
+                                ph_sub_prs <- ph_sub_prs[!is.na(ph_sub_prs[[v]]), ]
+                            }
+                            # compute spearman correlation
+                            cor_test <- cor.test(ph_sub_prs$PRS, ph_sub_prs[[v]], method = "spearman", na.rm = TRUE)
+                            cor_text <- paste0("Spearman=", round(cor_test$estimate, 2), ", p=", signif(cor_test$p.value, 3))
+                            prs_title = ifelse(suffix == "", 'PRS', 'PRS (APOE excluded)')
                             # plot
                             suppressMessages({
-                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab('Polygenic Risk Score') + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('Polygenic Risk Score vs Phenotype (', v, ')')) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14))
+                                plt_pheno = ggplot(data = ph_sub_prs, aes_string(x = "PRS", y = v)) + geom_point(alpha = 0.6, size = 2, color = '#008080') + geom_smooth(method = 'lm', col = 'red') + xlab(prs_title) + ylab(paste0('Phenotype (', v, ')')) + ggtitle(paste0('PRS vs ', v)) + theme_bw() + theme(axis.title = element_text(size = 16), axis.text = element_text(size = 14), plot.title = element_text(size = 18), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 14)) + annotate("text", x = min(ph_sub_prs$PRS, na.rm = TRUE), y = min(ph_sub_prs[[v]], na.rm = TRUE), label = cor_text, hjust = 0, vjust = 0, size = 5)
                                 # add marginal density plots using ggMarginal
                                 pdf(paste0(outdir, '/PRS_vs_', v, suffix, '.pdf'), height = 7, width = 7)
                                 print(ggExtra::ggMarginal(plt_pheno, type = "density", fill = '#008080', size = 5))
@@ -698,7 +717,8 @@
                         # rename columns
                         colnames(tmp_data) = c('iid', 'PRS', 'tile', 'variable')
                         # density title
-                        tmp_title = paste(tiles_prs_df$n_tiles[i], ' tiles of PRS~', tiles_prs_df$variable[i], ' (', tiles_prs_df$group[i], ') (Sex=', tiles_prs_df$sex[i], ')', sep = '')
+                        tmp_title = paste0('Tiles: ', tiles_prs_df$variable[i], ' (Sex=', tiles_prs_df$sex[i], ')')
+                        prs_title = ifelse(suffix == '', paste0('PRS (APOE excluded) ~ ', tiles_prs_df$n_tiles[i], ' tiles'), paste0('PRS (APOE excluded) ~ ', tiles_prs_df$n_tiles[i], ' tiles'))
                         tmp_data$variable = factor(tmp_data$variable)
                         # find deciles
                         prs_deciles = c()
@@ -711,10 +731,14 @@
                         colnames(prs_summary) = c('Tile', 'Variable', 'Count')
                         totals <- tapply(prs_summary$Count, prs_summary$Variable, sum)
                         prs_summary$Proportion <- prs_summary$Count / totals[as.character(prs_summary$Variable)]
+                        # check if nas need to be excluded
+                            if (na_beh == 'exclude'){
+                                tmp_data <- tmp_data[!is.na(tmp_data$variable), ]
+                            }
                         # plot
                         suppressMessages({
                             # density plot with dashed lines indicating tiles
-                            plt_density = ggplot(tmp_data[!is.na(tmp_data$tile),], aes(x=PRS, fill=variable)) + geom_density(alpha=0.5, bw = 0.15) + scale_fill_manual(values=c("#FF9999", "#66B3FF")) + labs(title=tmp_title, x="PRS", y="Density") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16)) + geom_vline(xintercept = as.numeric(prs_deciles), linetype = "dashed", color = "red")
+                            plt_density = ggplot(tmp_data[!is.na(tmp_data$tile),], aes(x=PRS, fill=variable)) + geom_density(alpha=0.5, bw = 0.15) + scale_fill_manual(values=c("#FF9999", "#66B3FF")) + labs(title=tmp_title, x=prs_title, y="Density") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16)) + geom_vline(xintercept = as.numeric(prs_deciles), linetype = "dashed", color = "red")
                             # proportion plot
                             prp_plot = ggplot(prs_summary, aes(x=Tile, y=Proportion, fill=Variable)) + geom_bar(stat='identity', position='dodge', width=0.7, alpha = 0.7) + labs(title="Proportions per decile and group", x="Decile", y="Proportion") + scale_fill_manual(values=c("#FF9999", "#66B3FF")) + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'top', legend.text = element_text(size = 14), legend.title = element_text(size = 16))
                             # add the plots to the list
@@ -755,9 +779,11 @@
                         colnames(tmp_data) = c('iid', 'PRS', 'split', 'variable')
                         # density title
                         tmp_title = paste0('PRS across ', split_info_df$n_split[i], ' splits of ', split_info_df$variable[i], ' (Sex=', split_info_df$sex[i], ')', sep = '')
+                        # prs title
+                        prs_title = ifelse(suffix == '', 'PRS', 'PRS (APOE excluded)')
                         # plot -- violin and boxplots
                         suppressMessages({
-                            plt = ggplot(tmp_data[!is.na(tmp_data$split),], aes(x = split, y = PRS, fill = split)) + geom_violin(alpha = 0.5) + geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) + scale_fill_brewer(palette = "Set3") + labs(title = tmp_title, x = "Splits", y = "PRS") + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none')
+                            plt = ggplot(tmp_data[!is.na(tmp_data$split),], aes(x = split, y = PRS, fill = split)) + geom_violin(alpha = 0.5) + geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) + scale_fill_brewer(palette = "Set3") + labs(title = tmp_title, x = "Splits", y = prs_title) + theme_bw() + theme(title = element_text(size = 18), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), axis.title = element_text(size = 16), legend.position = 'none')
                         })
                         # add the plot to the list
                         plotlist[[i]] = plt
@@ -784,7 +810,7 @@
         info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\nAssociation with survival: ', assoc_survival, '\nSex-stratified: ', sex_strata, '\n\n')
         # Write log file
         writeLines(info, outname)
-        return(info)
+        return(outname)
     }
 
     # Function to write output
@@ -1167,7 +1193,8 @@
                 # Custom theme
                 custom_theme <- theme_minimal() + theme(legend.position = "bottom", axis.text = element_text(size = 14), axis.title = element_text(size = 16), legend.text = element_text(size = 14), legend.title = element_text(size = 16))
                 # Plot
-                plt = ggsurvplot(fit, data = prs_df_pheno_sex, risk.table = TRUE, pval = TRUE, conf.int = TRUE, risk.table.height = 0.25, ggtheme = custom_theme, title = paste0('Survival curves for PRS', suffix, ' ~ ', variable, '(Sex=', sexinfo, ')'))
+                plt_title = ifelse(suffix == '', paste0('Survival: PRS~', variable, ' (Sex=', sexinfo, ')'), paste0('Survival: PRS~', variable, ' ~ APOE excluded (Sex=', sexinfo, ')'))
+                plt = ggsurvplot(fit, data = prs_df_pheno_sex, risk.table = TRUE, pval = TRUE, conf.int = TRUE, risk.table.height = 0.25, ggtheme = custom_theme, title = plt_title)
                 # Save the plot
                 pdf(paste0(outdir, '/survival_plot_', variable, '_', sexinfo, suffix, '.pdf'), width = 8, height = 8)
                 print(plt, newpage = FALSE)

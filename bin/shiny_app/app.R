@@ -108,17 +108,23 @@ ui <- fluidPage(
       checkboxInput("freq", "Calculate variant frequencies (--freq)", value = FALSE),
       checkboxInput("exclude", "Calculate PRS with and without APOE (--exclude)", value = FALSE),
       checkboxInput("multiple", "Multiple PLINK files should be used as input (--multiple)", value = FALSE),
-      checkboxInput("plot", "Draw density plot (--plot)", value = FALSE),
+      checkboxInput("plot", "Draw plots (--plot)", value = FALSE),
+      # add conditional panel for plot
+      conditionalPanel(
+        condition = "input.plot == true",
+        checkboxInput("exclude_na", "Exclude NAs from plots", value = FALSE),
+      ),
       checkboxInput("directEffects", "Use variant effect-sizes as they are in the SNP list file instead of converting to risk (--directEffects)", value = FALSE),
       checkboxInput("keepDosage", "Keep dosages as additional file (--keepDosage)", value = FALSE),
       checkboxInput("maf", "Minor Allele Frequency filter (--maf)", value = FALSE),
+      textInput("addWeight", "Additional weight for PRS (eg pathway-PRS or cell-PRS)", value = "", placeholder = "Column name in SNP list file to consider for double weighted-PRS"),
       checkboxInput("assoc_analysis", "Association analysis", value = FALSE),
 
       # add conditional panel for maf: input should be a number
       conditionalPanel(
         condition = "input.maf == true",
         numericInput("maf_value", "MAF Value", value = 0.01, min = 0, max = 1, step = 0.005),
-        div(style = "margin-top: -10px; margin-bottom: 10px;", h6("Set the MAF threshold for filtering variants."))
+        div(style = "margin-top: -10px; margin-bottom: 10px;", h6("Set the MAF threshold for filtering variants.")),
       ),
 
       # add conditional panel for association analysis
@@ -128,6 +134,31 @@ ui <- fluidPage(
         selectInput("test_type", "Test Type", choices = c("PRS", "SNP", "Both"), selected = "PRS"),
         textInput("pheno_outcomes", "Outcomes (comma-separated)", value = ""),
         textInput("pheno_covariates", "Covariates (comma-separated)", value = ""),
+        checkboxInput("sex_strata", "Sex-stratified analyses", value = FALSE),
+        textInput("survival_var", "Variables for survival analysis", value = "", placeholder = "Variable name as reported in the phenotype file, eg SURVIVAL"),
+        checkboxInput("tiles_analysis", "Tile-based analysis", value = FALSE),
+        
+        # add conditional panel for the tiles analysis
+        conditionalPanel(
+          condition = "input.tiles_analysis == true",
+          textInput("n_tiles", "Number of tiles", value = "", placeholder = "Number of tiles to create, eg 10"),
+          textInput("variable_tiles", "Variable to consider", value = "", placeholder = "Variable name as reported in the phenotype file, eg AD_CAT"),
+          textInput("variable_tiles_reference", "Reference group", value = "", placeholder = "Reference group for the variable, eg 0"),
+        ),
+
+        checkboxInput("split_analysis", "Split-based analysis", value = FALSE),
+        # add conditional panel for the split analysis
+        conditionalPanel(
+          condition = "input.split_analysis == true",
+          textInput("variable_split", "Variable to consider", value = "", placeholder = "Variable name as reported in the phenotype file, eg MMSE"),
+          textInput("variable_split_threshold", "Thresholds for the splits", value = "", placeholder = "Thresholds for splitting the variable, eg 1-10-20"),
+        ),
+
+        # add conditional panel for the association of tiles and splits
+        conditionalPanel(
+          condition = "input.tiles_analysis == true || input.split_analysis == true",
+          checkboxInput("assoc_tiles_splits", "Association of tiles and splits", value = FALSE),
+        ),
       ),
     ),
 
@@ -319,11 +350,18 @@ server <- function(input, output, session) {
       if (input$freq) "--freq",
       if (input$exclude) "--exclude",
       if (input$multiple) "--multiple",
+      if (input$addWeight != "") paste0("--addWeight ", input$addWeight),
       if (input$plot) "--plot",
+      if (input$exclude_na) "exclude_NA",
       if (input$directEffects) "--directEffects",
       if (input$keepDosage) "--keepDosage",
       if (input$assoc_analysis) { paste0("--assoc ", input$test_type, " ", input$pheno_path, " --assoc-var ", input$pheno_outcomes, " --assoc-cov ", input$pheno_covariates)},
-      if (input$maf) { paste0("--maf ", str_replace_all(input$maf_value, ",", ".")) }
+      if (input$maf) { paste0("--maf ", str_replace_all(input$maf_value, ",", ".")) },
+      if (input$sex_strata) "--sex-strata",
+      if (input$tiles_analysis) { paste0("--tiles '", input$n_tiles, ";", input$variable_tiles, ";", input$variable_tiles_reference, "'") },
+      if (input$split_analysis) { paste0("--split '", input$variable_split, ";", input$variable_split_threshold, "'") },
+      if (input$assoc_tiles_splits) "--assoc-split-tiles",
+      if (input$survival_var != "") paste0("--survival-var ", input$survival_var)
       )
 
       input_jordan <- ifelse(
@@ -355,8 +393,7 @@ server <- function(input, output, session) {
       tags$div(class = "spinner", title = "Running...", style = "margin-top: 6px;")
     })
 
-    output$log_output <- renderText({ "Running Jordan...\n" })
-
+    output$log_output <- renderText({ paste(tail(log_lines, 100), collapse = "\n") })
     cmd_info <- generate_cmd()
     jordan_cmd <- cmd_info$cmd
 
@@ -387,10 +424,12 @@ server <- function(input, output, session) {
   })
 
   output$output_tabs <- renderUI({
-    req(proc_done())  # only re-render if process was triggered
+  tabs <- list(
+    tabPanel("Log", verbatimTextOutput("log_output"))
+  )
 
-    tabs <- list(
-      tabPanel("Log", verbatimTextOutput("log_output")),
+  if (proc_done()) {
+    tabs <- append(tabs, list(
       tabPanel("PRS", 
         htmlOutput("results_output"),
         div(
@@ -398,7 +437,7 @@ server <- function(input, output, session) {
           tableOutput("prs_table")
         )
       )
-    )
+    ))
 
     if (input$freq) {
       tabs <- append(tabs, list(
@@ -461,44 +500,57 @@ server <- function(input, output, session) {
         ))
       }
     }
+  }
 
-    do.call(tabsetPanel, c(list(id = "results_tabs"), tabs))
-  })
+  do.call(tabsetPanel, c(list(id = "results_tabs"), tabs))
+})
 
   observe({
-    req(proc_trigger())
-    invalidateLater(500)
+  req(proc_trigger())
+  invalidateLater(500)
 
-    if (!is.null(proc) && proc$is_alive()) {
-      new_output <- proc$read_output_lines()
-      new_error <- proc$read_error_lines()
-      log_lines <<- c(log_lines, new_output, new_error)
-      output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
-    } else if (!is.null(proc)) {
-      new_output <- proc$read_output_lines()
-      new_error  <- proc$read_error_lines()
-      log_lines <<- c(log_lines, new_output, new_error)
+  if (!is.null(proc) && proc$is_alive()) {
+    proc$poll_io(100)
 
-      output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
-      writeLines(log_lines, log_file_path())
-
-      output$spinner_container <- renderUI({ NULL })
-      shinyjs::enable("run_btn")
-
-      # 🧹 Clear and recopy PDFs here
-      old_pdfs <- list.files(plot_dir, pattern = "\\.pdf$", full.names = TRUE)
-      file.remove(old_pdfs)
-
-      new_pdfs <- list.files(input$out_path, pattern = "\\.pdf$", full.names = TRUE)
-      file.copy(new_pdfs, plot_dir, overwrite = TRUE)
-
-      # Reset
-      plot_index(1)
-      proc_trigger(FALSE)
-      proc_done(TRUE)
-      proc <<- NULL
+    if (proc$is_incomplete_output()) {
+      new_output <- proc$read_output_lines(n = 1)
+      log_lines <<- c(log_lines, new_output)
     }
-  })
+
+    if (proc$is_incomplete_error()) {
+      new_error <- proc$read_error_lines(n = 1)
+      log_lines <<- c(log_lines, new_error)
+    }
+
+    output$log_output <- renderText({ paste(tail(log_lines, 100), collapse = "\n") })
+  } else if (!is.null(proc)) {
+  # Final read after process exits
+  repeat {
+    more_out <- proc$read_output_lines()
+    more_err <- proc$read_error_lines()
+    if (length(more_out) == 0 && length(more_err) == 0) break
+    log_lines <<- c(log_lines, more_out, more_err)
+  }
+
+  # ✅ Now show complete final log (not just tail)
+  output$log_output <- renderText({ paste(log_lines, collapse = "\n") })
+
+  writeLines(log_lines, log_file_path())
+  output$spinner_container <- renderUI({ NULL })
+  shinyjs::enable("run_btn")
+
+  # Update plots
+  old_pdfs <- list.files(plot_dir, pattern = "\\.pdf$", full.names = TRUE)
+  file.remove(old_pdfs)
+  new_pdfs <- list.files(input$out_path, pattern = "\\.pdf$", full.names = TRUE)
+  file.copy(new_pdfs, plot_dir, overwrite = TRUE)
+
+  plot_index(1)
+  proc_trigger(FALSE)
+  proc_done(TRUE)
+  proc <<- NULL
+  }
+})
 
   output$download_vcf <- downloadHandler(
     filename = function() "output.vcf",
@@ -631,7 +683,9 @@ server <- function(input, output, session) {
   })
 
   output$results_output <- renderUI({
-    invalidateLater(1000, session)
+    if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
+  }
     prs_path <- prs_results_path()  
     if (!file.exists(prs_path)) {
       return(HTML("<span class='valid-fail'>&#10007;</span> <b>PRS_table.txt</b> not found in the output directory."))
@@ -639,13 +693,15 @@ server <- function(input, output, session) {
     HTML("<h5>PRS Table</h5>")
   })
   output$prs_table <- renderTable({
-    invalidateLater(1000, session)
+    req(proc_done())
     req(file.exists(prs_results_path()))
     fread(prs_results_path())
   }, striped = TRUE, bordered = TRUE)
 
   output$freq_output <- renderUI({
-    invalidateLater(1000, session)
+    if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
+  }
     freq_path <- freq_results_path()
     if (!file.exists(freq_path)) {
       return(HTML("<span class='valid-fail'>&#10007;</span> <b>frequencies.txt</b> not found in the output directory."))
@@ -653,13 +709,15 @@ server <- function(input, output, session) {
     HTML("<h5>Frequencies Table</h5>")
   })
   output$freq_table <- renderTable({
-    invalidateLater(1000, session)
+    req(proc_done())
     req(file.exists(freq_results_path()))
     fread(freq_results_path())
   }, striped = TRUE, bordered = TRUE)
 
   output$assoc_prs_output <- renderUI({
-    invalidateLater(1000, session)
+    if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
+  }
     assoc_prs_path <- assoc_prs_results_path()
     if (!file.exists(assoc_prs_path)) {
       return(HTML("<span class='valid-fail'>&#10007;</span> <b>association_results_PRS.txt</b> not found in the output directory."))
@@ -667,13 +725,15 @@ server <- function(input, output, session) {
     HTML("<h5>Association Results (PRS)</h5>")
   })
   output$assoc_prs_table <- renderTable({
-    invalidateLater(1000, session)
+    req(proc_done())
     req(file.exists(assoc_prs_results_path()))
     fread(assoc_prs_results_path())
   }, striped = TRUE, bordered = TRUE)
 
   output$assoc_snp_output <- renderUI({
-    invalidateLater(1000, session)
+    if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
+  }
     assoc_snp_path <- assoc_snp_results_path()
     if (!file.exists(assoc_snp_path)) {
       return(HTML("<span class='valid-fail'>&#10007;</span> <b>association_results_single.txt</b> not found in the output directory."))
@@ -681,13 +741,16 @@ server <- function(input, output, session) {
     HTML("<h5>Association Results (SNP)</h5>")
   })
   output$assoc_snp_table <- renderTable({
-    invalidateLater(1000, session)
+    req(proc_done())
     req(file.exists(assoc_snp_results_path()))
     fread(assoc_snp_results_path())
   }, striped = TRUE, bordered = TRUE)
 
   output$plot_controls <- renderUI({
     files <- plot_files()
+    if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
+  }
     if (length(files) == 0) return("No plots available.")
 
     tagList(
@@ -698,20 +761,25 @@ server <- function(input, output, session) {
   })
 
   output$pdf_viewer <- renderUI({
-    files <- plot_files()
-    if (length(files) == 0) return(NULL)
-    idx <- plot_index()
-    if (idx > length(files)) idx <- length(files)
-    file_to_show <- files[[idx]]
+  if (!proc_done()) {
+    return(HTML("<i>Jordan is running. Plots will be displayed once available.</i>"))
+  }
 
-    tagList(
-      tags$embed(
-        src = file.path("tmp_plots", file_to_show),
-        type = "application/pdf",
-        width = "100%",
-        height = "800px"
-      ), tags$div(style = "height: 30px;"))
-  })
+  files <- plot_files()
+  if (length(files) == 0) return(NULL)
+  idx <- plot_index()
+  if (idx > length(files)) idx <- length(files)
+  file_to_show <- files[[idx]]
+  timestamp <- as.numeric(Sys.time())  # cache buster
+
+  tagList(
+    tags$embed(
+      src = file.path("tmp_plots", file_to_show),
+      type = "application/pdf",
+      width = "100%",
+      height = "800px"
+    ), tags$div(style = "height: 30px;"))
+})
 
   observeEvent(input$prev_plot, {
     if (plot_index() > 1) plot_index(plot_index() - 1)
