@@ -17,6 +17,11 @@
     script_path <- dirname(sub("^--file=", "", args[grep("^--file=", args)]))
     # Load functions    
     source(file.path(script_path, "jordan_functions.R"))
+    # Detect system and adapt plink executables
+    system_info = detect_system(script_path)
+    plink_path = system_info[[1]]
+    plink2_path = system_info[[2]]
+    system_config = system_info[[3]]
     
 # Parse arguments
     # Required arguments
@@ -90,6 +95,7 @@
 
     # Print arguments on screen
         cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
+        cat("\nSystem: ", system_config)
         cat("\nGenotype file: ", genotype_file)
         cat("\nMultiple files: ", multiple)
         cat("\nSNPs file: ", snps_file)
@@ -119,7 +125,7 @@
         outdir = checkOutputFile(outfile)
 
     # Check input genotype file
-        res = checkGenoFile(genotype_file, outdir, dosage, multiple, script_path)
+        res = checkGenoFile(genotype_file, outdir, dosage, multiple, script_path, plink_path, plink2_path)
         genotype_path = res[[1]]
         genotype_type = res[[2]]
 
@@ -150,7 +156,7 @@
         log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov, assoc_survival, sex_strata)
             
         # Calculate PRS
-        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata)
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path)
 
         # Check if tile-based analysis is requested
         if (tiles_prs != FALSE){

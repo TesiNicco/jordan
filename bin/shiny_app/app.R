@@ -246,7 +246,9 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   # Directory to hold PDF plots (served via www/)
   plot_dir <- file.path("www", "tmp_plots")
-  dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+  # Clear existing PDFs
+  old_pdfs <- list.files(plot_dir, pattern = "\\.pdf$", full.names = TRUE)
+  file.remove(old_pdfs)
   
   # Derive the path to the Jordan binary
   get_script_dir <- function() {
@@ -699,6 +701,7 @@ server <- function(input, output, session) {
   }, striped = TRUE, bordered = TRUE)
 
   output$freq_output <- renderUI({
+    invalidateLater(1000, session)
     if (!proc_done()) {
     return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
   }
@@ -715,6 +718,7 @@ server <- function(input, output, session) {
   }, striped = TRUE, bordered = TRUE)
 
   output$assoc_prs_output <- renderUI({
+    invalidateLater(1000, session)
     if (!proc_done()) {
     return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
   }
@@ -731,6 +735,7 @@ server <- function(input, output, session) {
   }, striped = TRUE, bordered = TRUE)
 
   output$assoc_snp_output <- renderUI({
+    invalidateLater(1000, session)
     if (!proc_done()) {
     return(HTML("<i>Jordan is running. Results will be displayed once the run has completed.</i>"))
   }

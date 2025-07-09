@@ -11,6 +11,62 @@
         })
 
 # Functions
+    # Function to detect the system and adapt plink executables
+    detect_system <- function(script_path) {
+        os <- Sys.info()[["sysname"]]
+        arch <- .Machine$sizeof.pointer
+        arch_str <- if (arch == 8) "64-bit" else "32-bit"
+        
+        if (os == "Linux") {
+            estimate = 'Linux (Unknown CPU)'
+            info <- readLines("/proc/cpuinfo")
+            flags <- grep("flags", info, value = TRUE)[1]
+            vendor <- grep("vendor_id", info, value = TRUE)[1]
+            is_avx2 <- grepl("avx2", flags)
+            is_amd <- grepl("AuthenticAMD", vendor)
+            is_intel <- grepl("GenuineIntel", vendor)
+            
+            if (is_avx2 && is_intel) estimate = "Linux AVX2 Intel"
+            if (is_avx2 && is_amd) estimate = "Linux AVX2 AMD"
+            if (arch == 8 && is_intel) estimate = "Linux 64-bit Intel"
+            if (arch == 4) estimate = "Linux 32-bit"
+        } else if (os == "Darwin") {
+            estimate = 'macOS (Unknown CPU)'
+            chip <- system("sysctl -n machdep.cpu.brand_string", intern = TRUE)
+            flags <- system("sysctl -n machdep.cpu.features", intern = TRUE)
+            is_avx2 <- grepl("AVX2", flags)
+            is_m1 <- grepl("Apple", chip)
+            
+            if (is_m1) estimate = "macOS M1"
+            if (is_avx2) estimate = "macOS AVX2"
+        } else {
+            # For other systems, we can only return a generic message and stop as it's not supported
+            stop("Unsupported operating system. Please use Linux or macOS.")
+        }
+
+        # The define the plink executables based on the system
+        if (estimate == 'Linux AVX2 Intel'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_linux_64bit')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_linux_avx2_intel')
+        } else if (estimate == 'Linux AVX2 AMD'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_linux_64bit')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_linux_avx2_amd')
+        } else if (estimate == 'Linux 64-bit Intel' | estimate == 'Linux (Unknown CPU)'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_linux_64bit')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_linux_intel')
+        } else if (estimate == 'Linux 32-bit'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_linux_32bit')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_linux_32bit')
+        } else if (estimate == 'macOS M1'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_macos')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_macos_m1')
+        } else if (estimate == 'macOS AVX2'){
+            plink_path = file.path(script_path, 'plink_executables', 'plink_macos')
+            plink2_path = file.path(script_path, 'plink_executables', 'plink2_macos_avx2')
+        }
+        return(list(plink_path, plink2_path, estimate))
+    }
+
     # Function to check output file
     checkOutputFile = function(outname){
         # check if directory exists otherwise create it
@@ -30,7 +86,7 @@
     }
 
     # Function to check input genotype file
-    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run, script_path){
+    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run, script_path, plink_path, plink2_path){
         # check if file is a vcf/bcf
         if (file.exists(genotype_file) && (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz'))){
             # check if the file is a vcf/bcf
@@ -38,10 +94,10 @@
             # vcf file
             if (isdosage == TRUE){
                 cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0(script_path, '/plink2 --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             } else {
                 cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0(script_path, '/plink2 --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
             }
             data_path = paste0(outdir, '/tmp.pvar')
             res = list(data_path, 'plink2')
@@ -154,13 +210,13 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path){
         # decide whether frequencies in cases and controls need to be calculated
         freq_mode = defineFreqMode(assoc_file, assoc_info, freq)
         # match ids in the plink file and extract dosages/genotypes
         cat('**** Matching SNPs and extracting dosages.\n')
         # Match variants of interest and get the dosages
-        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path)
+        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path)
         dosages = res[[1]]
         mappingSnp = res[[2]]
         all_freq = res[[3]]
@@ -207,7 +263,7 @@
         }
     }
 
-    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path){
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path){
         # container for all dosages and matching snps and frequencies
         matchingsnps_all = data.frame()
         all_dos = data.frame()
@@ -264,34 +320,34 @@
                 if (genotype_type == 'plink'){
                     if (maf == TRUE){
                         # Extract dosages
-                        system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(plink2_path, ' --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(plink2_path, ' --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add unique identifier
                             freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path, plink2_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
                     } else {
                         # Extract dosages
-                        system(paste0(script_path, '/plink --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(plink_path, ' --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0(script_path, '/plink2 --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(plink2_path, ' --bfile ', str_replace_all(f, '.bim', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add unique identifier
                             freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path, plink2_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -300,34 +356,34 @@
                 } else if (genotype_type == 'plink2'){
                     if (maf == TRUE){
                         # Extract dosages
-                        system(paste0(script_path, '/plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(plink2_path, ' --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0(script_path, '/plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(plink2_path, ' --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --maf ', maf, ' --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add unique identifier
                             freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path, plink2_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
                         }
                     } else {
                         # Extract dosages
-                        system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
+                        system(paste0(plink2_path, ' --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --export A include-alt --out ', outdir, '/dosages > /dev/null 2>&1'))
                         # Calculate frequencies if requested
                         if (freq == TRUE){
-                            system(paste0('plink2 --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
+                            system(paste0(plink2_path, ' --pfile ', str_replace_all(f, '.pvar', ''), ' --extract ', outdir, '/snpsInterest.txt --freq cols=+pos --out ', outdir, '/frequencies > /dev/null 2>&1'))
                             # Read frequencies
                             freq_file = data.table::fread(paste0(outdir, '/frequencies.afreq'), h=T, stringsAsFactors=F)
                             # Add unique identifier
                             freq_file$UNIQUE_ID = paste(freq_file$ID, freq_file$REF, freq_file$ALT, sep = "_")
                             # Check if case-control frequency should be done as well
                             if (freq_mode != FALSE){
-                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path)
+                                freq_file = CaseControlFreq(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path, plink2_path)
                             }
                             # Add to dataframe
                             all_freq = rbind(all_freq, freq_file)
@@ -368,7 +424,7 @@
     }
 
     # Function to calculate case-control frequencies
-    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path){
+    CaseControlFreq = function(freq_file, freq_mode, f, outdir, assoc_info, genotype_type, script_path, plink2_path){
         # split the variables of interest
         var_interest = unlist(str_split(freq_mode, ','))
         # iterate over variables
@@ -392,8 +448,8 @@
             # define input file based on the type of genotype file
             input_file = ifelse(genotype_type == 'plink', paste0('--bfile ', str_replace_all(f, '.bim', '')), paste0('--pfile ', str_replace_all(f, '.pvar', '')))
             # then calculate frequency
-            system(paste0(script_path, '/plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq cols=+pos --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
-            system(paste0(script_path, '/plink2 ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq cols=+pos --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
+            system(paste0(plink2_path, ' ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_controls.txt --freq cols=+pos --out ', outdir, '/frequencies_controls > /dev/null 2>&1'))
+            system(paste0(plink2_path, ' ', input_file, ' --extract ', outdir, '/snpsInterest.txt --keep ', outdir, '/tmp_cases.txt --freq cols=+pos --out ', outdir, '/frequencies_cases > /dev/null 2>&1'))
             # read frequencies
             freq_file_controls = data.table::fread(paste0(outdir, '/frequencies_controls.afreq'), h=T, stringsAsFactors=F)
             freq_file_cases = data.table::fread(paste0(outdir, '/frequencies_cases.afreq'), h=T, stringsAsFactors=F)
@@ -718,7 +774,7 @@
                         colnames(tmp_data) = c('iid', 'PRS', 'tile', 'variable')
                         # density title
                         tmp_title = paste0('Tiles: ', tiles_prs_df$variable[i], ' (Sex=', tiles_prs_df$sex[i], ')')
-                        prs_title = ifelse(suffix == '', paste0('PRS (APOE excluded) ~ ', tiles_prs_df$n_tiles[i], ' tiles'), paste0('PRS (APOE excluded) ~ ', tiles_prs_df$n_tiles[i], ' tiles'))
+                        prs_title = ifelse(suffix == '', paste0('PRS ~ ', tiles_prs_df$n_tiles[i], ' tiles'), paste0('PRS (APOE excluded) ~ ', tiles_prs_df$n_tiles[i], ' tiles'))
                         tmp_data$variable = factor(tmp_data$variable)
                         # find deciles
                         prs_deciles = c()
@@ -1169,7 +1225,7 @@
             if (model_type == 'cox'){
                 assoc_results = rbind(assoc_results, data.frame(Predictor = 'PRS', Outcome = paste(var_name, event_variable, sep=";"), Covariates = paste(covar_names, collapse = ','), Beta_PRS = summary(model)$coefficients[1, 1], SE_PRS = summary(model)$coefficients[1, 3], P_PRS = summary(model)$coefficients[1, 5], Model = model_type, N_tot = nrow(prs_df_pheno_sex), N_missing = sum(is.na(prs_df_pheno_sex[, var_name])), Mapping = var_mapping, Model_converged = NA, N_effective = nrow(prs_df_pheno_sex) - sum(is.na(prs_df_pheno_sex[, var_name])), N_cases = n_cases, N_controls = n_controls, sex = assoc_variables$sex[i], stringsAsFactors = F))
                 # if plot was requested, make the survival plot now
-                if (plt != FALSE){
+                if (!is.null(plt)){
                     makeSurvPlot(prs_df_pheno_sex, suffix, outdir, assoc_variables$variable[i], assoc_variables$sex[i], surv_obj)
                 }
             } else {
