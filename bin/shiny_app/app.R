@@ -306,10 +306,6 @@ server <- function(input, output, session) {
     updateTextInput(session, "pheno_path", value = example_pheno_path)
     updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
     updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
-    # 🧠 Force inputs to trigger reactivity (important!)
-    session$sendInputMessage("data_path", list(value = example_data_path))
-    session$sendInputMessage("snp_path", list(value = example_snp_path))
-    session$sendInputMessage("out_path", list(value = example_out_path))
   }, once = TRUE)
 
   observe({
@@ -318,6 +314,7 @@ server <- function(input, output, session) {
     message("📂 SNP path: ", example_snp_path)
     message("📂 Output path: ", example_out_path)
     message("📂 Phenotype path: ", example_pheno_path)
+    print("👀 run_btn value:", input$run_btn)
   })
 
   observe({
