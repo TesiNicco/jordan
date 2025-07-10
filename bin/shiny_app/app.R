@@ -227,14 +227,7 @@ ui <- fluidPage(
       ),
 
       tags$hr(),
-      fluidRow(
-        column(width = 2,
-          actionButton("run_btn", "Run Jordan", class = "btn btn-primary")
-        ),
-        column(width = 1,
-          uiOutput("spinner_container")
-        )
-      ),
+      uiOutput("run_button_ui"),
       uiOutput("spinner_container"),
       tags$div(style = "height: 10px;"),
       uiOutput("output_tabs")
