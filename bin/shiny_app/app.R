@@ -309,6 +309,14 @@ server <- function(input, output, session) {
   })
 
   observe({
+  message("🔍 Inferred jordan_path: ", jordan_path)
+  message("📂 Example data path: ", example_data_path)
+  message("📂 SNP path: ", example_snp_path)
+  message("📂 Output path: ", example_out_path)
+  message("📂 Phenotype path: ", example_pheno_path)
+})
+
+  observe({
     valid <- file.exists(input$data_path) && file.exists(input$snp_path) && nzchar(input$out_path)
     if (isTRUE(input$assoc_analysis)) {
       valid <- valid && file.exists(input$pheno_path)
