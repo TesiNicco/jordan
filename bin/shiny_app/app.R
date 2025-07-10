@@ -263,7 +263,6 @@ server <- function(input, output, session) {
     }
   }
   jordan_path <- str_replace_all(get_script_dir(),  '/bin/shiny_app', '')
-  print(jordan_path)
 
   # Identify data type based on file extension
   data_type <- reactive({
@@ -389,6 +388,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$run_btn, {
+    writeLines(capture.output(Sys.getenv()), "~/shiny_env_debug.txt")
     shinyjs::disable("run_btn")
     log_lines <<- character(0)
 
