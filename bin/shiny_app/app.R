@@ -388,7 +388,6 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$run_btn, {
-    message("✅ Run button clicked and observer triggered")
     shinyjs::disable("run_btn")
     log_lines <<- character(0)
 
