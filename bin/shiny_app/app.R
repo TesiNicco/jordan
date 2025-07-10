@@ -299,30 +299,26 @@ server <- function(input, output, session) {
   example_pheno_covariates <- "SEX,PC1,PC2,PC3"
 
   # Update the UI fields with the computed values
-  #observe({
-  #  updateTextInput(session, "data_path", value = example_data_path)
-  #  updateTextInput(session, "snp_path", value = example_snp_path)
-  #  updateTextInput(session, "out_path", value = example_out_path)
-  #  updateTextInput(session, "pheno_path", value = example_pheno_path)
-  #  updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
-  #  updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
-  #})
   session$onFlushed(function() {
-  updateTextInput(session, "data_path", value = example_data_path)
-  updateTextInput(session, "snp_path", value = example_snp_path)
-  updateTextInput(session, "out_path", value = example_out_path)
-  updateTextInput(session, "pheno_path", value = example_pheno_path)
-  updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
-  updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
-}, once = TRUE)
+    updateTextInput(session, "data_path", value = example_data_path)
+    updateTextInput(session, "snp_path", value = example_snp_path)
+    updateTextInput(session, "out_path", value = example_out_path)
+    updateTextInput(session, "pheno_path", value = example_pheno_path)
+    updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
+    updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
+    # 🧠 Force inputs to trigger reactivity (important!)
+    session$sendInputMessage("data_path", list(value = example_data_path))
+    session$sendInputMessage("snp_path", list(value = example_snp_path))
+    session$sendInputMessage("out_path", list(value = example_out_path))
+  }, once = TRUE)
 
   observe({
-  message("🔍 Inferred jordan_path: ", jordan_path)
-  message("📂 Example data path: ", example_data_path)
-  message("📂 SNP path: ", example_snp_path)
-  message("📂 Output path: ", example_out_path)
-  message("📂 Phenotype path: ", example_pheno_path)
-})
+    message("🔍 Inferred jordan_path: ", jordan_path)
+    message("📂 Example data path: ", example_data_path)
+    message("📂 SNP path: ", example_snp_path)
+    message("📂 Output path: ", example_out_path)
+    message("📂 Phenotype path: ", example_pheno_path)
+  })
 
   observe({
     valid <- file.exists(input$data_path) && file.exists(input$snp_path) && nzchar(input$out_path)
