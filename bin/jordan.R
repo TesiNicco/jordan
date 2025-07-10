@@ -2,14 +2,22 @@
 # Libraries
     suppressWarnings({
         suppressMessages({
-            library(argparse)
-            library(data.table)
-            library(stringr)
-            library(survival)
-            library(ggplot2)
+            # Check if the required libraries are installed
+            required_packages <- c("argparse", "data.table", "stringr", "survival", "ggplot2", "survminer", "ggpubr")
+            for (pkg in required_packages) {
+                if (!requireNamespace(pkg, quietly = TRUE)) {
+                    install.packages(pkg, dependencies = TRUE, repos = "https://cloud.r-project.org/")
+                } else {
+                    library(argparse)
+                    library(data.table)
+                    library(stringr)
+                    library(survival)
+                    library(ggplot2)
+                    library(survminer)
+                    library(ggpubr)
+                }
+            }
             args <- commandArgs(trailingOnly = FALSE)
-            library(survminer)
-            library(ggpubr)
         })
     })
 
