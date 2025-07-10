@@ -103,32 +103,6 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
         split_info = args$split
         assoc_split = args$assoc_split_tiles
 
-    # Print arguments on screen
-        cat("\nSystem: ", system_config)
-        cat("\nGenotype file: ", genotype_file)
-        cat("\nMultiple files: ", multiple)
-        cat("\nSNPs file: ", snps_file)
-        cat("\nOutput file: ", outfile)
-        cat("\nDosage: ", dosage)
-        cat("\nMAF: ", maf)
-        cat("\nWith and Without APOE: ", excludeAPOE)
-	    cat("\nUse direct effects (Risk and Protective): ", fliprisk)
-	    cat("\nKeep dosages: ", keepDos)
-        cat("\nAdditional weight: ", addWeight)
-        cat("\nCalculate frequency: ", freq)
-        cat("\nAssociation testing: ", assoc_file)
-        if (assoc_file != FALSE){
-            cat("\nAssociation mode: ", assoc_mode)
-        }
-        cat("\nAssociation variables: ", assoc_var)
-        cat("\nAssociation covariates: ", assoc_cov)
-        cat("\nAssociation survival: ", assoc_survival)
-        cat("\nSex-stratified analysis: ", sex_strata)
-        cat("\nTile-based analysis: ", tiles_prs)
-        cat("\nSplit individuals: ", split_info)
-        cat("\nAssociation of the split/tiles: ", assoc_split)
-        cat("\nPlot: ", plt, '\n\n')
-
 # Import functions from jordan_functions.R
     # Derive directory of the script
     script_path <- dirname(sub("^--file=", "", args[grep("^--file=", args)]))
@@ -139,7 +113,32 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
     plink_path = system_info[[1]]
     plink2_path = system_info[[2]]
     system_config = system_info[[3]]
-    
+
+# Print arguments on screen
+    cat("\nSystem: ", system_config)
+    cat("\nGenotype file: ", genotype_file)
+    cat("\nMultiple files: ", multiple)
+    cat("\nSNPs file: ", snps_file)
+    cat("\nOutput file: ", outfile)
+    cat("\nDosage: ", dosage)
+    cat("\nMAF: ", maf)
+    cat("\nWith and Without APOE: ", excludeAPOE)
+	cat("\nUse direct effects (Risk and Protective): ", fliprisk)
+    cat("\nKeep dosages: ", keepDos)
+    cat("\nAdditional weight: ", addWeight)
+    cat("\nCalculate frequency: ", freq)
+    cat("\nAssociation testing: ", assoc_file)
+    if (assoc_file != FALSE){
+        cat("\nAssociation mode: ", assoc_mode)
+    }
+    cat("\nAssociation variables: ", assoc_var)
+    cat("\nAssociation covariates: ", assoc_cov)
+    cat("\nAssociation survival: ", assoc_survival)
+    cat("\nSex-stratified analysis: ", sex_strata)
+    cat("\nTile-based analysis: ", tiles_prs)
+    cat("\nSplit individuals: ", split_info)
+    cat("\nAssociation of the split/tiles: ", assoc_split)
+    cat("\nPlot: ", plt, '\n\n')    
 
 # Check inputs
     # Check output directory
