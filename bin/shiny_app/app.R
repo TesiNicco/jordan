@@ -299,14 +299,22 @@ server <- function(input, output, session) {
   example_pheno_covariates <- "SEX,PC1,PC2,PC3"
 
   # Update the UI fields with the computed values
-  observe({
-    updateTextInput(session, "data_path", value = example_data_path)
-    updateTextInput(session, "snp_path", value = example_snp_path)
-    updateTextInput(session, "out_path", value = example_out_path)
-    updateTextInput(session, "pheno_path", value = example_pheno_path)
-    updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
-    updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
-  })
+  #observe({
+  #  updateTextInput(session, "data_path", value = example_data_path)
+  #  updateTextInput(session, "snp_path", value = example_snp_path)
+  #  updateTextInput(session, "out_path", value = example_out_path)
+  #  updateTextInput(session, "pheno_path", value = example_pheno_path)
+  #  updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
+  #  updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
+  #})
+  session$onFlushed(function() {
+  updateTextInput(session, "data_path", value = example_data_path)
+  updateTextInput(session, "snp_path", value = example_snp_path)
+  updateTextInput(session, "out_path", value = example_out_path)
+  updateTextInput(session, "pheno_path", value = example_pheno_path)
+  updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
+  updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
+}, once = TRUE)
 
   observe({
   message("🔍 Inferred jordan_path: ", jordan_path)

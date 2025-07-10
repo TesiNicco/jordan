@@ -84,7 +84,7 @@
     }
 
     # Function to check input genotype file
-    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, run, script_path, plink_path, plink2_path){
+    checkGenoFile = function(genotype_file, outdir, isdosage, multiple, script_path, plink_path, plink2_path){
         # check if file is a vcf/bcf
         if (file.exists(genotype_file) && (endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz') | endsWith(genotype_file, 'bcf') | endsWith(genotype_file, 'bcf.gz'))){
             # check if the file is a vcf/bcf
