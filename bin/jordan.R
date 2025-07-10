@@ -33,17 +33,6 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
         })
     })
 
-# Functions: import functions from jordan_functions.R
-    # Derive directory of the script
-    script_path <- dirname(sub("^--file=", "", args[grep("^--file=", args)]))
-    # Load functions    
-    source(file.path(script_path, "jordan_functions.R"))
-    # Detect system and adapt plink executables
-    system_info = detect_system(script_path)
-    plink_path = system_info[[1]]
-    plink2_path = system_info[[2]]
-    system_config = system_info[[3]]
-    
 # Parse arguments
     # Required arguments
         # Create parser
@@ -139,7 +128,19 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
         cat("\nSplit individuals: ", split_info)
         cat("\nAssociation of the split/tiles: ", assoc_split)
         cat("\nPlot: ", plt, '\n\n')
+
+# Import functions from jordan_functions.R
+    # Derive directory of the script
+    script_path <- dirname(sub("^--file=", "", args[grep("^--file=", args)]))
+    # Load functions    
+    source(file.path(script_path, "jordan_functions.R"))
+    # Detect system and adapt plink executables
+    system_info = detect_system(script_path)
+    plink_path = system_info[[1]]
+    plink2_path = system_info[[2]]
+    system_config = system_info[[3]]
     
+
 # Check inputs
     # Check output directory
         outdir = checkOutputFile(outfile)
