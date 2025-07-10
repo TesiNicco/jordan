@@ -43,7 +43,7 @@
             # For other systems, we can only return a generic message and stop as it's not supported
             stop("Unsupported operating system. Please use Linux or macOS.")
         }
-
+        print(estimate)
         # The define the plink executables based on the system
         if (estimate == 'Linux AVX2 Intel'){
             plink_path = file.path(script_path, 'plink_executables', 'plink_linux_64bit')
