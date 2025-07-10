@@ -18,7 +18,7 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
             installed_packages <- rownames(installed.packages())
             missing_packages <- setdiff(required_packages, installed_packages)
             if (length(missing_packages) > 0) {
-                install.packages(missing_packages)
+                install.packages(missing_packages, repos = "https://cloud.r-project.org/")
             }
             # Load the libraries again after installation
             library(argparse, quietly = TRUE)
