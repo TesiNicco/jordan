@@ -388,7 +388,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$run_btn, {
-    writeLines(capture.output(Sys.getenv()), "/tmp/shiny_env_debug.txt")
+    print('hellooooooooooo')
     shinyjs::disable("run_btn")
     log_lines <<- character(0)
 
