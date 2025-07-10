@@ -76,17 +76,6 @@ ui <- fluidPage(
 
   titlePanel("Jordan: Command-line Wrapper"),
 
-  tags$script(HTML("
-    Shiny.addCustomMessageHandler('toggleRunButton', function(enabled) {
-      const btn = document.getElementById('run_btn');
-      if (enabled) {
-        btn.removeAttribute('disabled');
-      } else {
-        btn.setAttribute('disabled', 'disabled');
-      }
-    });
-  ")),
-
   sidebarLayout(
     sidebarPanel(
       textInput("data_path", "Input Data Path", value = ""),
@@ -388,7 +377,6 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$run_btn, {
-    print('hellooooooooooo')
     shinyjs::disable("run_btn")
     log_lines <<- character(0)
 
