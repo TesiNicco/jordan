@@ -1,14 +1,16 @@
 #!/usr/bin/env Rscript
 # Libraries
-    suppressMessages({
-        library(argparse)
-        library(data.table)
-        library(stringr)
-        library(survival)
-        library(ggplot2)
-        args <- commandArgs(trailingOnly = FALSE)
-        library(survminer)
-        library(ggpubr)
+    suppressWarnings({
+        suppressMessages({
+            library(argparse)
+            library(data.table)
+            library(stringr)
+            library(survival)
+            library(ggplot2)
+            args <- commandArgs(trailingOnly = FALSE)
+            library(survminer)
+            library(ggpubr)
+        })
     })
 
 # Functions: import functions from jordan_functions.R

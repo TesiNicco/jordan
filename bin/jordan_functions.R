@@ -1,5 +1,6 @@
 # Libraries
-    suppressMessages({
+    suppressWarnings({
+        suppressMessages({
             library(argparse)
             library(data.table)
             library(stringr)
@@ -9,6 +10,7 @@
             library(survminer)
             library(ggpubr)
         })
+    })
 
 # Functions
     # Function to detect the system and adapt plink executables
@@ -31,14 +33,11 @@
             if (arch == 8 && is_intel) estimate = "Linux 64-bit Intel"
             if (arch == 4) estimate = "Linux 32-bit"
         } else if (os == "Darwin") {
-            estimate = 'macOS (Unknown CPU)'
+            estimate = 'macOS AVX2'
             chip <- system("sysctl -n machdep.cpu.brand_string", intern = TRUE)
-            flags <- system("sysctl -n machdep.cpu.features", intern = TRUE)
-            is_avx2 <- grepl("AVX2", flags)
             is_m1 <- grepl("Apple", chip)
             
             if (is_m1) estimate = "macOS M1"
-            if (is_avx2) estimate = "macOS AVX2"
         } else {
             # For other systems, we can only return a generic message and stop as it's not supported
             stop("Unsupported operating system. Please use Linux or macOS.")
