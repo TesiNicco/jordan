@@ -2,7 +2,7 @@
 ** Jordan: a pipeline to make PRS and PRS analyses in R **
 
 System:  Linux AVX2 AMD
-Genotype file:  /project/holstegelab/Share/nicco/jordan/example_data/example_data.vcf.gz
+Genotype file:  /project/holstegelab/Share/nicco/jordan/example_data/example_data_plink
 Multiple files:  FALSE
 SNPs file:  /project/holstegelab/Share/nicco/jordan/example_data/AD_snps.txt
 Output file:  /project/holstegelab/Share/nicco/jordan/example_data/test
@@ -12,7 +12,7 @@ With and Without APOE:  FALSE
 Use direct effects (Risk and Protective):  FALSE
 Keep dosages:  FALSE
 Additional weight:  FALSE
-Calculate frequency:  FALSE
+Calculate frequency:  TRUE
 Association testing:  FALSE
 Association variables:  FALSE
 Association covariates:  FALSE
@@ -23,8 +23,8 @@ Split individuals:  FALSE
 Association of the split/tiles:  FALSE
 Plot:  
 
-** Output directory is valid and exists.
-** VCF file found. Converting to PLINK.
+** Output directory does not exist. Will create.
+** PLINK file found.
 ** Required columns found
 
 ** Inputs are valid. Starting the script.

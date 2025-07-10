@@ -1,4 +1,4 @@
-Genotype file: /project/holstegelab/Share/nicco/jordan/example_data/example_data.vcf.gz
+Genotype file: /project/holstegelab/Share/nicco/jordan/example_data/example_data_plink
 Multiple files: FALSE
 SNPs file: /project/holstegelab/Share/nicco/jordan/example_data/AD_snps.txt
 Output file: /project/holstegelab/Share/nicco/jordan/example_data/test
@@ -8,7 +8,7 @@ With and Without APOE: FALSE
 Direct effects (Risk and Protective): FALSE
 Keep dosages: FALSE
 Additional weight: FALSE
-Calculate frequency: FALSE
+Calculate frequency: TRUE
 Plot: 
 
 Association file: FALSE
