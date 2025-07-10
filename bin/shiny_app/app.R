@@ -314,8 +314,11 @@ server <- function(input, output, session) {
     message("📂 SNP path: ", example_snp_path)
     message("📂 Output path: ", example_out_path)
     message("📂 Phenotype path: ", example_pheno_path)
-    print("👀 run_btn value:", input$run_btn)
   })
+
+  observe({
+  message("🌀 input$run_btn = ", input$run_btn)
+})
 
   observe({
     valid <- file.exists(input$data_path) && file.exists(input$snp_path) && nzchar(input$out_path)
