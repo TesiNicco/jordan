@@ -3,31 +3,33 @@ cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
 
 # Libraries
     # Check if the required libraries are installed
-    suppressMessages({
-        tryCatch({
-            library(argparse, quietly = TRUE)
-            library(data.table, quietly = TRUE)
-            library(stringr, quietly = TRUE)
-            library(survival, quietly = TRUE)
-            library(ggplot2, quietly = TRUE)
-            library(survminer, quietly = TRUE)
-            library(ggpubr, quietly = TRUE)
-        }, error = function(e) {
-            cat('**** Required packages are not installed. Installing now...\n')
-            required_packages <- c("argparse", "data.table", "stringr", "survival", "ggplot2", "survminer", "ggpubr")
-            installed_packages <- rownames(installed.packages())
-            missing_packages <- setdiff(required_packages, installed_packages)
-            if (length(missing_packages) > 0) {
-                install.packages(missing_packages, repos = "https://cloud.r-project.org/")
-            }
-            # Load the libraries again after installation
-            library(argparse, quietly = TRUE)
-            library(data.table, quietly = TRUE)
-            library(stringr, quietly = TRUE)
-            library(survival, quietly = TRUE)
-            library(ggplot2, quietly = TRUE)
-            library(survminer, quietly = TRUE)
-            library(ggpubr, quietly = TRUE)
+    suppressWarnings({
+        suppressMessages({
+            tryCatch({
+                library(argparse, quietly = TRUE)
+                library(data.table, quietly = TRUE)
+                library(stringr, quietly = TRUE)
+                library(survival, quietly = TRUE)
+                library(ggplot2, quietly = TRUE)
+                library(survminer, quietly = TRUE)
+                library(ggpubr, quietly = TRUE)
+            }, error = function(e) {
+                cat('**** Required packages are not installed. Installing now...\n')
+                required_packages <- c("argparse", "data.table", "stringr", "survival", "ggplot2", "survminer", "ggpubr")
+                installed_packages <- rownames(installed.packages())
+                missing_packages <- setdiff(required_packages, installed_packages)
+                if (length(missing_packages) > 0) {
+                    install.packages(missing_packages, repos = "https://cloud.r-project.org/")
+                }
+                # Load the libraries again after installation
+                library(argparse, quietly = TRUE)
+                library(data.table, quietly = TRUE)
+                library(stringr, quietly = TRUE)
+                library(survival, quietly = TRUE)
+                library(ggplot2, quietly = TRUE)
+                library(survminer, quietly = TRUE)
+                library(ggpubr, quietly = TRUE)
+            })
         })
     })
 
