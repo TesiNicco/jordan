@@ -263,6 +263,7 @@ server <- function(input, output, session) {
     }
   }
   jordan_path <- str_replace_all(get_script_dir(),  '/bin/shiny_app', '')
+  print(jordan_path)
 
   # Identify data type based on file extension
   data_type <- reactive({
