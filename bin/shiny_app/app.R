@@ -227,14 +227,7 @@ ui <- fluidPage(
       ),
 
       tags$hr(),
-      fluidRow(
-        column(width = 2,
-          actionButton("run_btn", "Run Jordan", class = "btn btn-primary")
-        ),
-        column(width = 1,
-          uiOutput("spinner_container")
-        )
-      ),
+      uiOutput("run_button_ui"),
       uiOutput("spinner_container"),
       tags$div(style = "height: 10px;"),
       uiOutput("output_tabs")
@@ -314,18 +307,6 @@ server <- function(input, output, session) {
     updateTextInput(session, "pheno_outcomes", value = example_pheno_outcomes)
     updateTextInput(session, "pheno_covariates", value = example_pheno_covariates)
   }, once = TRUE)
-
-  observe({
-    message("🔍 Inferred jordan_path: ", jordan_path)
-    message("📂 Example data path: ", example_data_path)
-    message("📂 SNP path: ", example_snp_path)
-    message("📂 Output path: ", example_out_path)
-    message("📂 Phenotype path: ", example_pheno_path)
-  })
-
-  observe({
-  message("🌀 input$run_btn = ", input$run_btn)
-})
 
   observe({
     valid <- file.exists(input$data_path) && file.exists(input$snp_path) && nzchar(input$out_path)
