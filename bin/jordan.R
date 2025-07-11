@@ -127,7 +127,13 @@
         cat("\nTile-based analysis: ", tiles_prs)
         cat("\nSplit individuals: ", split_info)
         cat("\nAssociation of the split/tiles: ", assoc_split)
-        cat("\nPlot: ", plt, '\n\n')
+        if (is.null(plt)) {
+            cat("\nPlot: None\n")
+        } else if (plt == "exclude_NA") {
+            cat("\nPlot: Yes - Exclude NAs\n")
+        } else {
+            cat("\nPlot: Default - Include all samples\n")
+        }
     
 # Check inputs
     # Check output directory

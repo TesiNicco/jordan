@@ -91,13 +91,38 @@
             vcftype = ifelse(endsWith(genotype_file, 'vcf') | endsWith(genotype_file, 'vcf.gz'), 'vcf', 'bcf')
             # vcf file
             if (isdosage == TRUE){
-                cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
-                system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                if (multiple == TRUE){
+                    cat('** Multiple VCF files found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
+                    all_files = c(system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.", vcftype, "$'"), intern = TRUE), system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.", vcftype, ".gz$'"), intern = TRUE))
+                    # create temporary ids
+                    tmp_ids = paste0(outdir, '/tmp_', seq_along(all_files))
+                    # convert all files to plink
+                    for (i in seq_along(all_files)){
+                        system(paste0(plink2_path, ' --', vcftype, ' ', all_files[i], ' dosage=HDS --make-pgen --out ', tmp_ids[i], ' > /dev/null 2>&1'))
+                    }
+                    data_path = system(paste0("find ", outdir, " -maxdepth 1 -type f -name 'tmp_*.pvar'"), intern = TRUE)
+                } else {
+                    cat('** VCF file found. Converting to PLINK assuming it is imputed data from Minimac-4 (dosage=HDS).\n')
+                    system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' dosage=HDS --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                    data_path = paste0(outdir, '/tmp.pvar')
+                }
             } else {
-                cat('** VCF file found. Converting to PLINK.\n')
-                system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                if (multiple == TRUE){
+                    cat('** Multiple VCF files found. Converting to PLINK.\n')
+                    all_files = c(system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.", vcftype, "$'"), intern = TRUE), system(paste0("find ", dirname(genotype_file), " -maxdepth 1 -type f -regex '.*\\.", vcftype, ".gz$'"), intern = TRUE))
+                    # create temporary ids
+                    tmp_ids = paste0(outdir, '/tmp_', seq_along(all_files))
+                    # convert all files to plink
+                    for (i in seq_along(all_files)){
+                        system(paste0(plink2_path, ' --', vcftype, ' ', all_files[i], ' --make-pgen --out ', tmp_ids[i], ' > /dev/null 2>&1'))
+                    }
+                    data_path = system(paste0("find ", outdir, " -maxdepth 1 -type f -name 'tmp_*.pvar'"), intern = TRUE)
+                } else {
+                    cat('** VCF file found. Converting to PLINK.\n')
+                    system(paste0(plink2_path, ' --', vcftype, ' ', genotype_file, ' --make-pgen --out ', outdir, '/tmp > /dev/null 2>&1'))
+                    data_path = paste0(outdir, '/tmp.pvar')
+                }
             }
-            data_path = paste0(outdir, '/tmp.pvar')
             res = list(data_path, 'plink2')
         } else if (file.exists(paste0(genotype_file, '.pvar'))){
             genotype_file = paste0(genotype_file, '.pvar')
