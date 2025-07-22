@@ -57,6 +57,8 @@
         parser$add_argument("--freq", help="When present, allele frequencies will be calculated. This is useful to check the MAF of the SNPs in the input file.", default = FALSE, action = "store_true")
         # Sex-stratified analysis
         parser$add_argument("--sex-strata", help="When present, the association analyses will be conducted in males, females, and the combined group. Make sure that a variable SEX or sex is present in the association file.", default = FALSE, action = "store_true")
+        # Do not add phenotypes to PRS table
+        parser$add_argument("--no-phenotypes", help="When present, the phenotypes will not be added to the PRS table.", default = FALSE, action = "store_true")
     # Optional arguments
         # Plot
         parser$add_argument("--plot", nargs = "?", const = "default", default = NULL, help = "If specified, saves a plot. Optionally takes 'exclude_NA' to exclude NAs from the plots (Default: include all).")        
@@ -101,6 +103,7 @@
         tiles_prs = args$tiles
         split_info = args$split
         assoc_split = args$assoc_split_tiles
+        addPheno = args$no_phenotypes
 
     # Print arguments on screen
         cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
@@ -241,13 +244,13 @@
             dosages = res[[3]]
             all_freq = res[[4]]
             # Write PRS with and without APOE
-            write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir, assoc_info)
-            write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir, assoc_info)
+            write_prs_outputs(res_apoe[[1]], res_apoe[[2]], snps_data, "", outdir, assoc_info, addPheno)
+            write_prs_outputs(res_noapoe[[1]], res_noapoe[[2]], snps_data, "_noAPOE", outdir, assoc_info, addPheno)
         } else {
             res_prs = res[[1]]
             dosages = res[[2]]
             all_freq = res[[3]]
-            write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir, assoc_info)
+            write_prs_outputs(res_prs[[1]], res_prs[[2]], snps_data, "", outdir, assoc_info, addPheno)
         }
 
         # Association testing

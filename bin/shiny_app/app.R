@@ -130,6 +130,7 @@ ui <- fluidPage(
       # add conditional panel for association analysis
       conditionalPanel(
         condition = "input.assoc_analysis == true",
+        selectInput("addPheno", "Add phenotypes to PRS table", choices = c("Yes", "No"), selected = "Yes"),
         textInput("pheno_path", "Phenotype Data Path", value = ""),
         selectInput("test_type", "Test Type", choices = c("PRS", "SNP", "Both"), selected = "PRS"),
         textInput("pheno_outcomes", "Outcomes (comma-separated)", value = ""),
@@ -363,7 +364,8 @@ server <- function(input, output, session) {
       if (input$tiles_analysis) { paste0("--tiles '", input$n_tiles, ";", input$variable_tiles, ";", input$variable_tiles_reference, "'") },
       if (input$split_analysis) { paste0("--split '", input$variable_split, ";", input$variable_split_threshold, "'") },
       if (input$assoc_tiles_splits) "--assoc-split-tiles",
-      if (input$survival_var != "") paste0("--survival-var ", input$survival_var)
+      if (input$survival_var != "") paste0("--survival-var ", input$survival_var),
+      if (input$addPheno == "No") "--no-phenotypes"
       )
 
       input_jordan <- ifelse(

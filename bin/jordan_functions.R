@@ -893,13 +893,15 @@
     }
 
     # Function to write output
-    write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir, assoc_info) {
+    write_prs_outputs = function(prs_df, included_snps, snps_data, suffix, outdir, assoc_info, addPheno) {
         # Check if assoc_info is provided
         if (length(assoc_info) >1){
-            assoc_idname = assoc_info[[1]]
-            assoc_data = assoc_info[[2]]
-            # merge the prs with association info
-            prs_df = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+            if (addPheno == TRUE){
+                assoc_idname = assoc_info[[1]]
+                assoc_data = assoc_info[[2]]
+                # merge the prs with association info
+                prs_df = merge(prs_df, assoc_data, by.x = 'iid', by.y = assoc_idname)
+            }
         }
         # Write PRS table
         write.table(prs_df, paste0(outdir, '/PRS_table', suffix, '.txt'), quote = FALSE, row.names = FALSE, sep = "\t")
