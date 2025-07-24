@@ -1653,3 +1653,325 @@
         }
         return(res_splits)
     }
+
+
+    # Function to compile phenotype report
+    reportPhenoStats = function(res_prs, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, suffix){
+        # Define output file
+        report_file = paste0(outdir, '/phenotype_report.txt')
+        # Check if the file already exists
+        if (!file.exists(report_file)){
+            # Write the header
+            cat(paste0("Phenotype Report\n", "========================================\n\n"), file = report_file, append = TRUE)
+        }
+
+        # Combine phenotypes with prs
+        combined_data = merge(assoc_info[[2]], res_prs, by.x = "IID", by.y = 'iid', all.x = TRUE)
+        # Isolate the association info
+        assoc_info_df = assoc_info[[3]]
+        # exclude sex info as it is already handled separately
+        assoc_info_df = assoc_info_df[which(assoc_info_df$sex == 'all'), ]
+
+        # All individuals
+            # total number of individuals
+            total_individuals = nrow(res_prs)
+            cat(paste0("Total number of individuals: ", total_individuals, "\n"), file = report_file, append = TRUE)
+            
+            # total number of individuals with PRS
+            total_individuals_prs = nrow(res_prs[!is.na(res_prs$PRS), ])
+            cat(paste0("Total number of individuals with PRS: ", total_individuals_prs, "\n\n"), file = report_file, append = TRUE)
+            
+            # age if present
+            if ('AGE' %in% toupper(colnames(combined_data))){
+                # Derive mean, median, sd, min, max, and IQR
+                mean_age = round(mean(combined_data$AGE, na.rm = TRUE), 3)
+                median_age = round(median(combined_data$AGE, na.rm = TRUE), 3)
+                sd_age = round(sd(combined_data$AGE, na.rm = TRUE), 3)
+                min_age = round(min(combined_data$AGE, na.rm = TRUE), 3)
+                max_age = round(max(combined_data$AGE, na.rm = TRUE), 3)
+                iqr_age = paste(round(quantile(combined_data$AGE, probs = c(0.25, 0.75)), 3), collapse = '-')
+                cat(paste0("Age Statistics ", suffix, "\n"), file = report_file, append = TRUE)
+                cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                cat(paste0(mean_age, "\t", median_age, "\t", sd_age, "\t", min_age, "\t", max_age, "\t", iqr_age), "\n\n", file = report_file, append = TRUE)
+            }
+
+            # PRS stats -- all individuals
+            mean_prs = round(mean(res_prs$PRS, na.rm = TRUE), 3)
+            median_prs = round(median(res_prs$PRS, na.rm = TRUE), 3)
+            sd_prs = round(sd(res_prs$PRS, na.rm = TRUE), 3)
+            min_prs = round(min(res_prs$PRS, na.rm = TRUE), 3)
+            max_prs = round(max(res_prs$PRS, na.rm = TRUE), 3)
+            iqr_prs = paste(round(quantile(res_prs$PRS, probs = c(0.25, 0.75)), 3), collapse = '-')
+            cat(paste0("PRS Statistics - All Individuals ", suffix, "\n"), file = report_file, append = TRUE)
+            cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+            cat(paste0(mean_prs, "\t", median_prs, "\t", sd_prs, "\t", min_prs, "\t", max_prs, "\t", iqr_prs), "\n\n", file = report_file, append = TRUE)
+    
+            # sex-stratified
+            if ('SEX' %in% toupper(colnames(combined_data))){
+                # sex table
+                tmp_table = table(combined_data$SEX)
+                cat('Sex information on all samples:\n', file = report_file, append = TRUE)
+                cat(paste0(names(tmp_table), ": ", as.numeric(tmp_table), collapse = ', '), "\n", file = report_file, append = TRUE)
+                cat("\n", file = report_file, append = TRUE)
+                # sex table of individuals with PRS
+                tmp_table_prs = table(combined_data$SEX[!is.na(combined_data$PRS)])
+                cat('Sex information on individuals with PRS:\n', file = report_file, append = TRUE)
+                cat(paste0(names(tmp_table_prs), ": ", as.numeric(tmp_table_prs), collapse = ', '), "\n\n", file = report_file, append = TRUE)
+
+                # PRS stats by sex
+                tmp_sexes = unique(combined_data$SEX)
+                for (sex in tmp_sexes){
+                    # age if present
+                    if ('AGE' %in% toupper(colnames(combined_data))){
+                        # Derive mean, median, sd, min, max, and IQR
+                        mean_age = round(mean(combined_data$AGE[combined_data$SEX == sex], na.rm = TRUE), 3)
+                        median_age = round(median(combined_data$AGE[combined_data$SEX == sex], na.rm = TRUE), 3)
+                        sd_age = round(sd(combined_data$AGE[combined_data$SEX == sex], na.rm = TRUE), 3)
+                        min_age = round(min(combined_data$AGE[combined_data$SEX == sex], na.rm = TRUE), 3)
+                        max_age = round(max(combined_data$AGE[combined_data$SEX == sex], na.rm = TRUE), 3)
+                        iqr_age = paste(round(quantile(combined_data$AGE[combined_data$SEX == sex], probs = c(0.25, 0.75)), 3), collapse = '-')
+                        # Write the stats to the file
+                        cat(paste0("Age Statistics by Sex: ", sex, ' ', suffix, "\n"), file = report_file, append = TRUE)
+                        cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                        cat(paste0(mean_age, "\t", median_age, "\t", sd_age, "\t", min_age, "\t", max_age, "\t", iqr_age), "\n\n", file = report_file, append = TRUE)
+                    }
+
+                    cat(paste0("PRS Statistics - Sex:", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                    cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                    # Derive mean, median, sd, min, max, and IQR
+                    mn = round(mean(res_prs$PRS[combined_data$SEX == sex], na.rm = TRUE), 3)
+                    md = round(median(res_prs$PRS[combined_data$SEX == sex], na.rm = TRUE), 3)
+                    sd_val = round(sd(res_prs$PRS[combined_data$SEX == sex], na.rm = TRUE), 3)
+                    min_val = round(min(res_prs$PRS[combined_data$SEX == sex], na.rm = TRUE), 3)
+                    max_val = round(max(res_prs$PRS[combined_data$SEX == sex], na.rm = TRUE), 3)
+                    iqr_val = paste(round(quantile(res_prs$PRS[combined_data$SEX == sex], probs = c(0.25, 0.75)), 3), collapse = '-')
+                    # Write the stats to the file
+                    cat(paste0(mn, "\t", md, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n\n", file = report_file, append = TRUE)
+                }
+            } else {
+                tmp_sexes = ''
+            }
+            cat("========================================\n", file = report_file, append = TRUE)
+            cat("\n\n", file = report_file, append = TRUE)
+
+        # Per-variable
+        # Iterate over the association variables
+        for (i in 1:nrow(assoc_info_df)){
+            # Get the variable names and info
+            tmp_var = assoc_info_df$variable[i]
+            tmp_var_type = assoc_info_df$type[i]
+            tmp_var_model = assoc_info_df$model[i]
+            tmp_var_mapping = assoc_info_df$mapping[i]
+
+            # Number of individuals with phenotype
+                # Write the header for the variable
+                cat(paste0("Phenotype Statistics: ", tmp_var, " ", suffix, "\n"), file = report_file, append = TRUE)
+                # Number of individuals with the phenotype
+                n_individuals = nrow(combined_data[!is.na(combined_data[, tmp_var]), ])
+                cat(paste0("Number of individuals with phenotype: ", tmp_var, ": ", n_individuals, "\n"), file = report_file, append = TRUE)
+                # Number of individuals with the phenotype and PRS
+                n_individuals_prs = nrow(combined_data[!is.na(combined_data[, tmp_var]) & !is.na(combined_data$PRS), ])
+                cat(paste0("Number of individuals with phenotype: ", tmp_var, " and PRS: ", n_individuals_prs, "\n"), file = report_file, append = TRUE)
+                # sex strata
+                if ('SEX' %in% toupper(colnames(combined_data))){
+                    # table of sex and phenotype
+                    tmp_table = table(combined_data$SEX[!is.na(combined_data[, tmp_var])])
+                    # Write the table to the file
+                    cat(paste0("Number of individuals with phenotype: ", tmp_var, " by SEX:\n"), file = report_file, append = TRUE)
+                    cat(paste0(names(tmp_table), ": ", as.numeric(tmp_table), collapse = ', '), "\n", file = report_file, append = TRUE)
+                    # table of sex and phenotype with PRS
+                    tmp_table_prs = table(combined_data$SEX[!is.na(combined_data[, tmp_var]) & !is.na(combined_data$PRS)])
+                    # Write the table to the file
+                    cat(paste0("Number of individuals with phenotype: ", tmp_var, " and PRS by SEX:\n"), file = report_file, append = TRUE)
+                    cat(paste0(names(tmp_table_prs), ": ", as.numeric(tmp_table_prs), collapse = ', '), "\n", file = report_file, append = TRUE)
+                }
+
+            # Calculate statistics based on the variable type
+            if (tmp_var_model == 'gaussian'){
+                cat("\n", file = report_file, append = TRUE)
+                # Calculate mean, median, sd, min, max, and IQR of the variable
+                mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], na.rm = TRUE), 3)
+                median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], na.rm = TRUE), 3)
+                sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], na.rm = TRUE), 3)
+                min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], na.rm = TRUE), 3)
+                max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], na.rm = TRUE), 3)
+                iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]), tmp_var], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                # Write the stats to the file
+                cat(paste0(tmp_var, " Statistics - Phenotype: ", tmp_var, " ", suffix, "\n"), file = report_file, append = TRUE)
+                cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                cat("\n", file = report_file, append = TRUE)
+
+                # The related to the PRS
+                # Calculate mean, median, sd, min, max, and IQR of the variable
+                mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], na.rm = TRUE), 3)
+                median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], na.rm = TRUE), 3)
+                sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], na.rm = TRUE), 3)
+                min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], na.rm = TRUE), 3)
+                max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], na.rm = TRUE), 3)
+                iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]), "PRS"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                # Write the stats to the file
+                cat(paste0("PRS Statistics - phenotype: ", tmp_var, " ", suffix, "\n"), file = report_file, append = TRUE)
+                cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                cat("\n", file = report_file, append = TRUE)
+
+                # Age if present
+                if ('AGE' %in% toupper(colnames(combined_data))){
+                    # Calculate mean, median, sd, min, max, and IQR of the age
+                    mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], na.rm = TRUE), 3)
+                    median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], na.rm = TRUE), 3)
+                    sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], na.rm = TRUE), 3)
+                    min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], na.rm = TRUE), 3)
+                    max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], na.rm = TRUE), 3)
+                    iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]), "AGE"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                    # Write the stats to the file
+                    cat(paste0("Age Statistics - phenotype: ", tmp_var, " ", suffix, "\n"), file = report_file, append = TRUE)
+                    cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                    cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                    cat("\n", file = report_file, append = TRUE)
+                }
+
+                # If present, sex stratified as well
+                if (length(tmp_sexes) > 0){
+                    for (sex in tmp_sexes){
+                        # Calculate mean, median, sd, min, max, and IQR for the different sexes
+                        mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], na.rm = TRUE), 3)
+                        median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], na.rm = TRUE), 3)
+                        sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], na.rm = TRUE), 3)
+                        min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], na.rm = TRUE), 3)
+                        max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], na.rm = TRUE), 3)
+                        iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, tmp_var], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                        # Write the stats to the file
+                        cat(paste0(tmp_var, " Statistics - phenotype: ", tmp_var, " ~ SEX: ", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                        cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                        cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                        cat("\n", file = report_file, append = TRUE)
+
+                        # The related to the PRS
+                        # Calculate mean, median, sd, min, max, and IQR of the variable
+                        mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                        median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                        sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                        min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                        max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                        iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                        # Write the stats to the file
+                        cat(paste0("PRS Statistics - phenotype: ", tmp_var, " ~ SEX: ", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                        cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                        cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                        cat("\n", file = report_file, append = TRUE)
+
+                        # Age if present
+                        if ('AGE' %in% toupper(colnames(combined_data))){
+                            # Calculate mean, median, sd, min, max, and IQR of the age for the different sex
+                            mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                            median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                            sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                            min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                            max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                            iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                            # Write the stats to the file
+                            cat(paste0("Age Statistics - phenotype: ", tmp_var, " ~ SEX: ", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                            cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                            cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                            cat("\n", file = report_file, append = TRUE)
+                        }
+                    }
+                }
+            } else if (tmp_var_model == 'binomial'){
+                # Number of individuals with phenotype
+                    # Derive original variables and newer
+                    values_df = data.frame(orig_values = c(str_split_fixed(str_split_fixed(tmp_var_mapping, ';', 2)[1], " ", 3)[1], str_split_fixed(str_split_fixed(tmp_var_mapping, ';', 2)[2], " ", 4)[2]), new_values = c(str_split_fixed(str_split_fixed(tmp_var_mapping, ';', 2)[1], " ", 3)[3], str_split_fixed(str_split_fixed(tmp_var_mapping, ';', 2)[2], " ", 4)[4]))
+                    values_df = values_df[order(values_df$new_values),]
+                    # Number of cases and controls
+                    n_controls = nrow(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == values_df$new_values[1], ])
+                    n_cases = nrow(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == values_df$new_values[2], ])
+                    # Write the number of cases and controls to the file
+                    cat(paste0("Number of controls (phenotype=", values_df$orig_values[1], "): ", n_controls, "\n"), file = report_file, append = TRUE)
+                    cat(paste0("Number of cases (phenotype=", values_df$orig_values[2], "): ", n_cases, "\n"), file = report_file, append = TRUE)
+                    cat("\n", file = report_file, append = TRUE)
+        
+                    # Number of cases and controls by sex
+                    tmp_table_controls = table(combined_data$SEX[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == values_df$new_values[1]])
+                    tmp_table_cases = table(combined_data$SEX[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == values_df$new_values[2]])
+                    # Write the number of cases and controls by sex
+                    cat(paste0("Number of controls (phenotype=", values_df$orig_values[1], ") by sex:\n"), file = report_file, append = TRUE)
+                    cat(paste0(names(tmp_table_controls), ": ", as.numeric(tmp_table_controls), collapse = ', '), "\n\n", file = report_file, append = TRUE)
+                    cat(paste0("Number of cases (phenotype=", values_df$orig_values[2], ") by sex:\n"), file = report_file, append = TRUE)
+                    cat(paste0(names(tmp_table_cases), ": ", as.numeric(tmp_table_cases), collapse = ', '), "\n\n", file = report_file, append = TRUE)
+                    cat("\n", file = report_file, append = TRUE)
+
+                # The related to the PRS -- iterate over the phenotypes
+                for (ph in values_df$new_values){
+                    # get the original value
+                    ph_orig = values_df$orig_values[which(values_df$new_values == ph)]
+                    # Calculate mean, median, sd, min, max, and IQR of the variable
+                    mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], na.rm = TRUE), 3)
+                    median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], na.rm = TRUE), 3)
+                    sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], na.rm = TRUE), 3)
+                    min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], na.rm = TRUE), 3)
+                    max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], na.rm = TRUE), 3)
+                    iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "PRS"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                    # Write the stats to the file
+                    cat(paste0("PRS Statistics - phenotype: ", tmp_var, " ~ ", ph_orig, " ", suffix, "\n"), file = report_file, append = TRUE)
+                    cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                    cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                    cat("\n", file = report_file, append = TRUE)
+
+                    # Age if present
+                    if ('AGE' %in% toupper(colnames(combined_data))){
+                        # Calculate mean, median, sd, min, max, and IQR of the age
+                        mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], na.rm = TRUE), 3)
+                        median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], na.rm = TRUE), 3)
+                        sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], na.rm = TRUE), 3)
+                        min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], na.rm = TRUE), 3)
+                        max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], na.rm = TRUE), 3)
+                        iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data[, tmp_var] == ph, "AGE"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                        # Write the stats to the file
+                        cat(paste0("Age Statistics - phenotype: ", tmp_var, " ~ ", ph_orig, " ", suffix, "\n"), file = report_file, append = TRUE)
+                        cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                        cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                        cat("\n", file = report_file, append = TRUE)
+                    }
+
+                    # If present, sex stratified as well
+                    if (length(tmp_sexes) > 0){
+                        for (sex in tmp_sexes){
+                            # The related to the PRS
+                            # Calculate mean, median, sd, min, max, and IQR of the variable
+                            mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                            median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                            sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                            min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                            max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], na.rm = TRUE), 3)
+                            iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, "PRS"], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                            # Write the stats to the file
+                            cat(paste0("PRS Statistics - phenotype: ", tmp_var, " ~ SEX: ", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                            cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                            cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                            cat("\n", file = report_file, append = TRUE)
+
+                            # Age if present
+                            if ('AGE' %in% toupper(colnames(combined_data))){
+                                # Calculate mean, median, sd, min, max, and IQR of the age for the different sex
+                                mean_val = round(mean(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                                median_val = round(median(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                                sd_val = round(sd(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                                min_val = round(min(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                                max_val = round(max(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], na.rm = TRUE), 3)
+                                iqr_val = paste(round(quantile(combined_data[!is.na(combined_data[, tmp_var]) & combined_data$SEX == sex, 'AGE'], probs = c(0.25, 0.75), na.rm = TRUE), 3), collapse = '-')
+                                # Write the stats to the file
+                                cat(paste0("Age Statistics - phenotype: ", tmp_var, " ~ SEX: ", sex, " ", suffix, "\n"), file = report_file, append = TRUE)
+                                cat("Mean\tMedian\tSD\tMin\tMax\tIQR\n", file = report_file, append = TRUE)
+                                cat(paste0(mean_val, "\t", median_val, "\t", sd_val, "\t", min_val, "\t", max_val, "\t", iqr_val), "\n", file = report_file, append = TRUE)
+                                cat("\n", file = report_file, append = TRUE)
+                            }
+                        }
+                    }
+                }
+            }
+            cat("========================================\n", file = report_file, append = TRUE)
+            cat("\n\n", file = report_file, append = TRUE)
+        }
+    }

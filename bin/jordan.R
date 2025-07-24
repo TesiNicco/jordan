@@ -58,7 +58,9 @@
         # Sex-stratified analysis
         parser$add_argument("--sex-strata", help="When present, the association analyses will be conducted in males, females, and the combined group. Make sure that a variable SEX or sex is present in the association file.", default = FALSE, action = "store_true")
         # Do not add phenotypes to PRS table
-        parser$add_argument("--no-phenotypes", help="When present, the phenotypes will not be added to the PRS table.", default = FALSE, action = "store_true")
+        parser$add_argument("--no-phenotypes-out", help="When present, the phenotypes will not be added to the PRS table.", default = FALSE, action = "store_true")
+        # Report phenotype statistics
+        parser$add_argument("--pheno-stats", help="When present, the phenotype statistics will be reported in the output directory. This is useful to check the distribution of the phenotypes.", default = FALSE, action = "store_true")
     # Optional arguments
         # Plot
         parser$add_argument("--plot", nargs = "?", const = "default", default = NULL, help = "If specified, saves a plot. Optionally takes 'exclude_NA' to exclude NAs from the plots (Default: include all).")        
@@ -103,7 +105,8 @@
         tiles_prs = args$tiles
         split_info = args$split
         assoc_split = args$assoc_split_tiles
-        addPheno = args$no_phenotypes
+        addPheno = args$no_phenotypes_out
+        phenoStats = args$pheno_stats
 
     # Print arguments on screen
         cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
@@ -122,14 +125,16 @@
         cat("\nAssociation testing: ", assoc_file)
         if (assoc_file != FALSE){
             cat("\nAssociation mode: ", assoc_mode)
+            cat("\nAssociation variables: ", assoc_var)
+            cat("\nAssociation covariates: ", assoc_cov)
+            cat("\nAssociation survival: ", assoc_survival)
+            cat("\nSex-stratified analysis: ", sex_strata)
+            cat("\nTile-based analysis: ", tiles_prs)
+            cat("\nSplit individuals: ", split_info)
+            cat("\nAssociation of the split/tiles: ", assoc_split)
+            cat("\nAdd phenotypes to PRS table: ", addPheno)
+            cat("\nPhenotype statistics: ", phenoStats)
         }
-        cat("\nAssociation variables: ", assoc_var)
-        cat("\nAssociation covariates: ", assoc_cov)
-        cat("\nAssociation survival: ", assoc_survival)
-        cat("\nSex-stratified analysis: ", sex_strata)
-        cat("\nTile-based analysis: ", tiles_prs)
-        cat("\nSplit individuals: ", split_info)
-        cat("\nAssociation of the split/tiles: ", assoc_split)
         if (is.null(plt)) {
             cat("\nPlot: None\n")
         } else if (plt == "exclude_NA") {
@@ -263,6 +268,19 @@
                 assoc_test(res_noapoe[[1]], assoc_info, outdir, "_noAPOE", 'prs', dosages, sex_strata, plt)
             } else {
                 assoc_test(res_prs[[1]], assoc_info, outdir, "", assoc_mode, dosages, sex_strata, plt)
+            }
+            # Report phenotype statistics if requested
+            if (phenoStats){
+                cat('\n**** Reporting phenotype statistics.\n')
+                if (excludeAPOE){
+                    res_apoe = res[[1]]
+                    res_noapoe = res[[2]]
+                    reportPhenoStats(res_apoe, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
+                    reportPhenoStats(res_noapoe, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "(APOE excluded)")
+                } else {
+                    res_prs = res[[1]]
+                    reportPhenoStats(res_prs, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
+                }
             }
         }
 
