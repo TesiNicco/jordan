@@ -8,13 +8,7 @@
                 if (!requireNamespace(pkg, quietly = TRUE)) {
                     install.packages(pkg, dependencies = TRUE, repos = "https://cloud.r-project.org/")
                 } else {
-                    library(argparse)
-                    library(data.table)
-                    library(stringr)
-                    library(survival)
-                    library(ggplot2)
-                    library(survminer)
-                    library(ggpubr)
+                    library(pkg, character.only = TRUE)
                 }
             }
             args <- commandArgs(trailingOnly = FALSE)
