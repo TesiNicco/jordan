@@ -3,7 +3,7 @@
     suppressWarnings({
         suppressMessages({
             # Check if the required libraries are installed
-            required_packages <- c("argparse", "data.table", "stringr", "survival", "ggplot2", "survminer")
+            required_packages <- c("argparse", "data.table", "stringr", "survival", "ggplot2", "survminer", "ggpubr")
             for (pkg in required_packages) {
                 if (!requireNamespace(pkg, quietly = TRUE)) {
                     install.packages(pkg, dependencies = TRUE, repos = "https://cloud.r-project.org/")

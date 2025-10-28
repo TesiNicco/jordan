@@ -8,6 +8,7 @@
             library(ggplot2)
             args <- commandArgs(trailingOnly = FALSE)
             library(survminer)
+            library(ggpubr)
         })
     })
 
