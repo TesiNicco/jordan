@@ -98,7 +98,7 @@ jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01
 Calculate PRS using a single PLINK data, defining dosages, MAF>1%, request frequencies and single-variant dosages. Perform association analysis of AD and MMSE status with PRS as well as single-variant analysis, and SEX, PC1 and PC2 as covariates
 ```console
 jordan.R --genotype example_data_plink --dosage --snplist AD_snps.txt --maf 0.01 --freq --keepDosage --outname prs_dos_maf_freq_assocMulti --assoc both example_assoc_file.txt --assoc-var AD,MMSE --assoc-cov SEX,PC1,PC2
-```  
+```
 
 ## Test
 To test everything is allright, you can use the following script alongside the example datasets provided in the repository. The example data will make a PRS from 85 SNPs associated with Alzheimer's Disease in individuals from the 1000Genome Project. 
@@ -109,6 +109,17 @@ The application can be run from anywhere in your system with the following code:
 Rscript -e "shiny::runApp('/path/to/jordan/bin/shiny_app/app.R', port = 4525, host = '127.0.0.1')"
 ```  
 The server normally exposes the graphic interface on a port (in the second comman it is specified as 4525, but can be changed). The user can then user any browser to open the connection, for example by using the URL http://127.0.0.1:4525.
+
+## Centenarian Collaboration
+We are conducting single-variant and PRS analyses related to Alzheimer's Disease risk in Centenarians as opposed to Healthy younger individuals, as well as in the age-continuum. To conduct analyses and ensure replicability across cohorts, we recommend using the following code for the analysis including Sex as covariate:
+```console
+jordan.R --genotype path/to/genotype/chr1.dosage --dosage --multiple --exclude --snplist ADsnps_cojo_5e-08_list_HG38.txt --outname /path/to/output/folder --freq --sex-strata --assoc both /path/to/phenotype/data --assoc-var MMSE,SURVIVAL,AD_Control,AD_Centenarian,Centenarian_Control --assoc-cov SEX,PC1,PC2,PC3,PC4,PC5 --survival-var SURVIVAL --tiles "10;Centenarian_Control;1" --split "MMSE;20-26" --assoc-split-tiles
+```
+And the following code for conducting analyses excluding Sex as covariate:
+```console
+jordan.R --genotype path/to/genotype/chr1.dosage --dosage --multiple --exclude --snplist ADsnps_cojo_5e-08_list_HG38.txt --outname /path/to/output/folder --freq --sex-strata --assoc both /path/to/phenotype/data --assoc-var MMSE,SURVIVAL,AD_Control,AD_Centenarian,Centenarian_Control --assoc-cov PC1,PC2,PC3,PC4,PC5 --survival-var SURVIVAL --tiles "10;Centenarian_Control;1" --split "MMSE;20-26" --assoc-split-tiles
+```
+*Note: These lines of code assume one file per chromosome (PLINK or VCF format). In addition to genetics data, a phenotype file should be present, and formatted as described above. This code will (1) generate PRS with the variants of interest (including and excluding APOE variants), (2) will perform single-variant analyses of the variants of interest, (3) will report on allelic frequency, (4) will perform PRS analysis across the defined groups (correcting for defined covariates), (5) will perform a survival analysis, (6) a percentile-based analysis, and (7) will compare the PRS between groups split based on MMSE. Not all analyses are mandatory, but if data is available, we encourage collaborators to perform all of them.*
 
 ## Contact
 For comments, feedback, or questions, feel free to reach me at [n.tesi@amsterdamumc.nl](mailto:n.tesi@amsterdamumc.nl) or open an issue.
