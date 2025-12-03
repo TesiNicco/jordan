@@ -55,6 +55,8 @@
         parser$add_argument("--no-phenotypes-out", help="When present, the phenotypes will not be added to the PRS table.", default = FALSE, action = "store_true")
         # Report phenotype statistics
         parser$add_argument("--pheno-stats", help="When present, the phenotype statistics will be reported in the output directory. This is useful to check the distribution of the phenotypes.", default = FALSE, action = "store_true")
+        # Impute missing genotypes
+        parser$add_argument("--impute-missing", help="When present, missing genotypes will be imputed using 2*MAF dosage across all individuals. For this to be effective, a EFFECT_ALLELE_FREQUENCY column should be present in the SNP file.", default = FALSE, action = "store_true")
     # Optional arguments
         # Plot
         parser$add_argument("--plot", nargs = "?", const = "default", default = NULL, help = "If specified, saves a plot. Optionally takes 'exclude_NA' to exclude NAs from the plots (Default: include all).")        
@@ -101,6 +103,7 @@
         assoc_split = args$assoc_split_tiles
         addPheno = args$no_phenotypes_out
         phenoStats = args$pheno_stats
+        imputeMissing = args$impute_missing
 
     # Print arguments on screen
         cat("\n** Jordan: a pipeline to make PRS and PRS analyses in R **\n")
@@ -116,6 +119,7 @@
 	    cat("\nKeep dosages: ", keepDos)
         cat("\nAdditional weight: ", addWeight)
         cat("\nCalculate frequency: ", freq)
+        cat("\nImpute missing genotypes: ", imputeMissing)
         cat("\nAssociation testing: ", assoc_file)
         if (assoc_file != FALSE){
             cat("\nAssociation mode: ", assoc_mode)
@@ -147,7 +151,7 @@
         genotype_type = res[[2]]
 
     # Check input snplist
-        snps_data = checkInputSNPs(snps_file, addWeight)
+        snps_data = checkInputSNPs(snps_file, addWeight, imputeMissing)
 
     # Check maf
         if (maf != FALSE){
@@ -170,10 +174,10 @@
         cat('\n** Inputs are valid. Starting the script.\n\n')
             
         # Add log file with run info to the output folder
-        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov, assoc_survival, sex_strata)
+        log = writeLog(outdir, genotype_file, snps_file, outfile, dosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_var, assoc_cov, assoc_survival, sex_strata, imputeMissing)
             
         # Calculate PRS
-        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path)
+        res = makePRS(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path, imputeMissing)
 
         # Check if tile-based analysis is requested
         if (tiles_prs != FALSE){

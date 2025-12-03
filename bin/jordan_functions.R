@@ -148,7 +148,7 @@
     }
 
     # Function to check input genotype file
-    checkInputSNPs = function(snps_file, addWeight){
+    checkInputSNPs = function(snps_file, addWeight, imputeMissing){
         # check if file exists
         if (file.exists(snps_file)){
             # open file
@@ -160,34 +160,38 @@
                 if ('POS' %in% toupper(colnames(snps_data))){
                     if ('EFFECT_ALLELE' %in% toupper(colnames(snps_data))){
                         if ('OTHER_ALLELE' %in% toupper(colnames(snps_data))){
-                            if ('BETA' %in% toupper(colnames(snps_data))){
-                                if (addWeight != FALSE){
-                                    if (toupper(addWeight) %in% toupper(colnames(snps_data))){
+                            if (imputeMissing == TRUE & ('EFFECT_ALLELE_FREQUENCY' %in% toupper(colnames(snps_data))) | imputeMissing == FALSE){
+                                if ('BETA' %in% toupper(colnames(snps_data))){
+                                    if (addWeight != FALSE){
+                                        if (toupper(addWeight) %in% toupper(colnames(snps_data))){
+                                            res = snps_data
+                                            cat('** Required columns found\n')
+                                        } else {
+                                            stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
+                                        }
+                                    } else {
                                         res = snps_data
                                         cat('** Required columns found\n')
-                                    } else {
-                                        stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
                                     }
-                                } else {
-                                    res = snps_data
-                                    cat('** Required columns found\n')
-                                }
-                            } else if ('OR' %in% toupper(colnames(snps_data))){
-                                # convert to BETA
-                                snps_data$BETA = log(as.numeric(snps_data$OR))
-                                if (addWeight != FALSE){
-                                    if (addWeight %in% colnames(snps_data)){
+                                } else if ('OR' %in% toupper(colnames(snps_data))){
+                                    # convert to BETA
+                                    snps_data$BETA = log(as.numeric(snps_data$OR))
+                                    if (addWeight != FALSE){
+                                        if (addWeight %in% colnames(snps_data)){
+                                            res = snps_data
+                                            cat('** Required columns found\n')
+                                        } else {
+                                            stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
+                                        }
+                                    } else {
                                         res = snps_data
                                         cat('** Required columns found\n')
-                                    } else {
-                                        stop('** Additional weight was selected, but column was not found in SNP data.\n\n', call. = FALSE)
                                     }
                                 } else {
-                                    res = snps_data
-                                    cat('** Required columns found\n')
+                                    stop('** No BETA or OR column found in SNP data.\n\n', call. = FALSE)
                                 }
                             } else {
-                                stop('** No BETA or OR column found in SNP data.\n\n', call. = FALSE)
+                                stop('** EFFECT_ALLELE_FREQUENCY column is required to impute missing genotypes but not found in SNP data.\n\n', call. = FALSE)
                             }
                         } else {
                             stop('** No OTHER_ALLELE column found in SNP data.\n\n', call. = FALSE)
@@ -233,13 +237,13 @@
     }
 
     # Function to guide PRS
-    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path){
+    makePRS = function(outdir, genotype_path, snps_data, genotype_type, multiple, excludeAPOE, maf, fliprisk, keepDos, addWeight, freq, assoc_file, assoc_info, script_path, sex_strata, plink_path, plink2_path, imputeMissing){
         # decide whether frequencies in cases and controls need to be calculated
         freq_mode = defineFreqMode(assoc_file, assoc_info, freq)
         # match ids in the plink file and extract dosages/genotypes
         cat('**** Matching SNPs and extracting dosages.\n')
         # Match variants of interest and get the dosages
-        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path)
+        res = matchIDs_multiple(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path, imputeMissing)
         dosages = res[[1]]
         mappingSnp = res[[2]]
         all_freq = res[[3]]
@@ -286,7 +290,7 @@
         }
     }
 
-    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path){
+    matchIDs_multiple = function(genotype_path, snps_data, genotype_type, outdir, maf, freq, freq_mode, script_path, plink_path, plink2_path, imputeMissing){
         # container for all dosages and matching snps and frequencies
         matchingsnps_all = data.frame()
         all_dos = data.frame()
@@ -442,7 +446,41 @@
         if (nrow(all_freq) > 0){
             write.table(all_freq, paste0(outdir, '/frequencies.txt'), quote=F, row.names=F, sep="\t")
         }
+        # Add imputed variants if requested
+        if (imputeMissing == TRUE){
+            res = imputeMissingVariants(all_dos, snps_data, matchingsnps_all)
+            all_dos = res[[1]]
+            missing_snps = res[[2]]
+            # update matching snps
+            matchingsnps_all = rbind(matchingsnps_all, data.frame(chr=missing_snps$CHROM, id=missing_snps$id, na=0, pos=missing_snps$POS, ref=missing_snps$OTHER_ALLELE, alt=missing_snps$EFFECT_ALLELE, unique_id=missing_snps$id, allele_match='imputed'))
+        }
         res = list(all_dos, matchingsnps_all, all_freq)
+        return(res)
+    }
+
+    # Function to impute missing variants
+    imputeMissingVariants = function(all_dos, snps_data, matchingsnps_all){
+        # First find the missing variants
+        missing_snps = snps_data[which(!(snps_data$id %in% matchingsnps_all$unique_id)),]
+        # Define also ids
+        missing_snps$id = paste0(missing_snps$CHROM, ':', missing_snps$POS, ':', missing_snps$EFFECT_ALLELE, ':', missing_snps$OTHER_ALLELE)
+        # Define variant names for the dosage file
+        missing_snp_names = paste0(missing_snps$CHROM, ':', missing_snps$POS, ':', missing_snps$EFFECT_ALLELE, ':', missing_snps$OTHER_ALLELE, '_', missing_snps$EFFECT_ALLELE, '(/', missing_snps$OTHER_ALLELE, ')')
+        # Define dosages as 2*AF
+        imputed_dosages = missing_snps$EFFECT_ALLELE_FREQUENCY * 2
+        # Define samples
+        sample_ids = all_dos$IID
+        # Create a dataframe with imputed dosages
+        imputed_df = data.frame(matrix(nrow=length(sample_ids), ncol=length(missing_snp_names)))
+        colnames(imputed_df) = missing_snp_names
+        imputed_df$IID = sample_ids
+        # Fill the dosages
+        for (i in 1:nrow(imputed_df)){
+            imputed_df[i, missing_snp_names] = imputed_dosages
+        }
+        # Merge with all_dos
+        all_dos_imputed = merge(all_dos, imputed_df, by = 'IID')
+        res = list(all_dos_imputed, missing_snps)
         return(res)
     }
 
@@ -531,8 +569,10 @@
                     }
                     # add to main df
                     prs_df$PRS = prs_df$PRS + temp$score
+                    # see if variants was genuine or imputed
+                    snp_type = ifelse(temp_snpinfo$allele_match == 'yes', 'Included', 'Imputed')
                     # also save the included snps
-                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Included', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos, SNPID_DATA = colnames(dosages)[i], REASON = NA))
+                    included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = snp_type, CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos, SNPID_DATA = colnames(dosages)[i], REASON = NA))
                 } else {
                     cat(paste0('** Alleles do not match for snp ', temp_name, ': Expected alleles: ', temp_snpdata$EFFECT_ALLELE, '/', temp_snpdata$OTHER_ALLELE, ' - Found alleles: ', temp_effect, '/', temp_other, '. Skipping.\n'))
                     included_snps = rbind(included_snps, data.frame(SNP = temp_name, BETA = temp_snpdata$risk_beta, ALLELE = temp_snpdata$risk_allele, OTHER_ALLELE = temp_snpdata$OTHER_ALLELE, TYPE = 'Excluded', CHROM = temp_snpinfo$chr, POS = temp_snpinfo$pos, SNPID_DATA = colnames(dosages)[i], REASON = 'Alleles_do_not_match'))
@@ -882,11 +922,11 @@
     }
 
     # Function to write log file
-    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov, assoc_survival, sex_strata){
+    writeLog = function(outdir, genotype_file, snps_file, outfile, isdosage, plt, maf, multiple, excludeAPOE, fliprisk, keepDos, addWeight, freq, assoc, assoc_var, assoc_cov, assoc_survival, sex_strata, imputeMissing) {
         # Define output name
         outname = paste0(outdir, '/run_info.log')
         # Create log info
-        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\nAssociation with survival: ', assoc_survival, '\nSex-stratified: ', sex_strata, '\n\n')
+        info = paste0("Genotype file: ", genotype_file, "\nMultiple files: ", multiple, "\nSNPs file: ", snps_file, "\nOutput file: ", outfile, "\nDosage: ", isdosage, "\nMAF: ", maf, "\nWith and Without APOE: ", excludeAPOE, "\nDirect effects (Risk and Protective): ", fliprisk, "\nKeep dosages: ", keepDos, "\nAdditional weight: ", addWeight, "\nCalculate frequency: ", freq, "\nPlot: ", plt, '\n\n', 'Association file: ', assoc, '\nAssociation variables: ', assoc_var, '\nAssociation covariates: ', assoc_cov, '\nAssociation with survival: ', assoc_survival, '\nSex-stratified: ', sex_strata, '\nImpute missing variants:', imputeMissing, '\n\n')
         # Write log file
         writeLines(info, outname)
         return(outname)
