@@ -5,6 +5,7 @@
             library(data.table)
             library(stringr)
             library(survival)
+            library(plyr)
             library(ggplot2)
             args <- commandArgs(trailingOnly = FALSE)
             library(survminer)
@@ -452,7 +453,7 @@
             all_dos = res[[1]]
             missing_snps = res[[2]]
             # update matching snps
-            matchingsnps_all = rbind(matchingsnps_all, data.frame(chr=missing_snps$CHROM, id=missing_snps$id, na=0, pos=missing_snps$POS, ref=missing_snps$OTHER_ALLELE, alt=missing_snps$EFFECT_ALLELE, unique_id=missing_snps$id, allele_match='imputed'))
+            matchingsnps_all = rbind.fill(matchingsnps_all, data.frame(chr=missing_snps$CHROM, id=missing_snps$id, na=0, pos=missing_snps$POS, ref=missing_snps$OTHER_ALLELE, alt=missing_snps$EFFECT_ALLELE, unique_id=missing_snps$id, allele_match='imputed'))
         }
         res = list(all_dos, matchingsnps_all, all_freq)
         return(res)
