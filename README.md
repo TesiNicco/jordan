@@ -1,5 +1,3 @@
-# jordan
-
 <img src="assets/jordan.png" width="180" alt="Jordan icon">
 
 This repository provides a command-line R script and a Shiny-based graphical interface to (1) compute Polygenic Risk Scores (PRS) from genotype data (VCF/BCF/PLINK formats), (2) perform single-variant and PRS association testing, and (3) generate comprehensive diagnostic and association plots.  
