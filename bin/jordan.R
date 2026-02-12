@@ -273,11 +273,11 @@
                 if (excludeAPOE){
                     res_apoe = res[[1]]
                     res_noapoe = res[[2]]
-                    reportPhenoStats(res_apoe, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
-                    reportPhenoStats(res_noapoe, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "(APOE excluded)")
+                    reportPhenoStats(res_apoe[[1]], assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
+                    reportPhenoStats(res_noapoe[[1]], assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "(APOE excluded)")
                 } else {
                     res_prs = res[[1]]
-                    reportPhenoStats(res_prs, assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
+                    reportPhenoStats(res_prs[[1]], assoc_info, outdir, assoc_mode, assoc_var, assoc_cov, assoc_survival, "")
                 }
             }
         }
