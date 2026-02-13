@@ -16,7 +16,12 @@ You may need to make the main file executable by typing:
 chmod +x ./jordan/bin/jordan.R
 ```
 
-Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, `survival`, `survminer`, and `ggpubr`.
+`jordan` requires `R` and few libraries to be installed. You can either use the provided `conda` environment, or install the packages manually.
+To install a conda environment with all the required packages, you can use the following code:
+```console
+conda env create -f jordan.yml
+```
+If you prefer not to use `conda`, make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, `survival`, `survminer`, and `ggpubr`.
 In case these are not installed, you can install with the following code:
 ```console
 R  
