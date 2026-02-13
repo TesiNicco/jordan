@@ -107,6 +107,7 @@ ui <- fluidPage(
       checkboxInput("dosage", "Input is dosage (--dosage)", value = FALSE),
       checkboxInput("freq", "Calculate variant frequencies (--freq)", value = FALSE),
       checkboxInput("exclude", "Calculate PRS with and without APOE (--exclude)", value = FALSE),
+      checkboxInput("impute", "Impute missing genotypes based on allele frequencies (--impute-missing)", value = FALSE),
       checkboxInput("multiple", "Multiple PLINK files should be used as input (--multiple)", value = FALSE),
       checkboxInput("plot", "Draw plots (--plot)", value = FALSE),
       # add conditional panel for plot
@@ -352,6 +353,7 @@ server <- function(input, output, session) {
     flags <- c(
       if (input$dosage) "--dosage",
       if (input$freq) "--freq",
+      if (input$impute) "--impute-missing",
       if (input$exclude) "--exclude",
       if (input$multiple) "--multiple",
       if (input$addWeight != "") paste0("--addWeight ", input$addWeight),

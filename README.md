@@ -1,4 +1,5 @@
-# jordan
+<img src="assets/jordan.png" width="180" alt="Jordan icon">
+
 This repository provides a command-line R script and a Shiny-based graphical interface to (1) compute Polygenic Risk Scores (PRS) from genotype data (VCF/BCF/PLINK formats), (2) perform single-variant and PRS association testing, and (3) generate comprehensive diagnostic and association plots.  
 The R script (`jordan.R`) can be executed standalone via the command line, while the Shiny app (`shiny_app/`) offers a user-friendly interface that internally wraps and executes the same script using dynamic input.  
 
@@ -15,7 +16,12 @@ You may need to make the main file executable by typing:
 chmod +x ./jordan/bin/jordan.R
 ```
 
-Make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, `survival`, `survminer`, and `ggpubr`.
+`jordan` requires `R` and few libraries to be installed. You can either use the provided `conda` environment, or install the packages manually.
+To install a conda environment with all the required packages, you can use the following code:
+```console
+conda env create -f jordan.yml
+```
+If you prefer not to use `conda`, make sure you have these required `R` packages in place: `argparse`, `data.table`, `stringr`, `ggplot2`, `survival`, `survminer`, and `ggpubr`.
 In case these are not installed, you can install with the following code:
 ```console
 R  
@@ -57,6 +63,7 @@ will display the help message. `jordan` parameters are:
 - `--split` (*Optional, default: False*): when present, a split-based analysis will be performed. This analysis groups individuals based on defined grouping parameters. The format should be `"variable1;threshold1-threshold2-threshold3, variable2;threshold1-threshold2"`. For example, indicating `"MMSE;20-26"` will group individuals based on the MMSE column in three groups: value lower than 20, value between 20 and 26, and value larger than 26.  
 - `--assoc-split-tiles` (*Optional, default: False*): when present, tile-based and/or split-based analyses will be followed by association analysis. This consist in linear regression analysis of the variable(s) indicated in the `--tiles` analysis, using as predictors the tiles grouping. Associations will be corrected for the covariates defined in `--assoc-cov`. For splits, the PRS will be compared across splits in a linear regression model, accounting for the covariates defined in `--assoc-cov`.  
 - `--sex-strata` (*Optional, default: False*): when present, all analyses will be performed in males, females, and the combined set of individuals. This analysis requires that a variable SEX is included in the phenotype data.  
+- `--impute-missing` (*Optional, default: False*): when present, missing genotypes will be imputed using 2*MAF dosage across all individuals. For this to be effective, a `EFFECT_ALLELE_FREQUENCY` column should be present in the SNP file.	
 
 ## PRS and weights
 There can be different types of PRS: (i) *unweighted*, (ii) *weighted*, and (iii) *multiple-weighted*. *Unweighted* PRS are simply the sum of trait-associated alleles, with all variants having the same weight. To do this in jordan, simply set the BETA to 1 in the `--snplist` file to all variants. *Weighted* PRS are the most commonly used PRS, defined as the weighted sum of trait-associated alleles, weighted by an effect size, typically originating from a GWAS study. In `jordan`, PRS calculation is implemented as:  
