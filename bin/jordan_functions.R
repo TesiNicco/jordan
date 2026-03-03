@@ -481,8 +481,41 @@
         }
         # Merge with all_dos
         all_dos_imputed = merge(all_dos, imputed_df, by = 'IID')
-        res = list(all_dos_imputed, missing_snps)
+        # Finally check for sample-specific missing values -- variants that are NA in a subset of samples but not all -- and impute those as well
+        all_dos_final_imputed = imputeNAs(all_dos_imputed)
+        res = list(all_dos_final_imputed, missing_snps)
         return(res)
+    }
+
+    # Function to impute NAs in the dosage file
+    imputeNAs = function(all_dos_imputed, matchingsnps_all, snps_data){
+        # check for NAs
+        if (any(is.na(all_dos_imputed[, -1]))){
+            # Make sure dosages is a dataframe
+            all_dos_imputed = data.frame(all_dos_imputed, check.names=F)
+            # impute NAs with mean dosage for that variant
+            for (i in 2:ncol(all_dos_imputed)){
+                # check if there are NAs in the column
+                if (any(is.na(all_dos_imputed[, i]))){
+                    # get matching variant info
+                    tmp_info = matchingsnps_all[grep(str_split_fixed(colnames(all_dos_imputed)[i], '_', 2)[, 1], matchingsnps_all$id),]
+                    # get frequency of the effect allele and other allele
+                    tmp_frq_effect = snps_data$EFFECT_ALLELE_FREQUENCY[which(snps_data$id == tmp_info$unique_id)] * 2
+                    tmp_freq_other = (1 - snps_data$EFFECT_ALLELE_FREQUENCY[which(snps_data$id == tmp_info$unique_id)]) * 2
+                    # also get the effect allele -- snps data
+                    tmp_effect = snps_data$EFFECT_ALLELE[which(snps_data$id == tmp_info$unique_id)]
+                    # get the dosage-associated allele in the dosage file
+                    dosage_allele = str_split_fixed(str_split_fixed(colnames(all_dos_imputed)[i], '_', 2)[, 2], '\\(', 2)[, 1]
+                    # get the imputed dosage based on the allele
+                    tmp_imputed = ifelse(dosage_allele == tmp_effect, tmp_frq_effect, tmp_freq_other)
+                    # impute the NAs
+                    all_dos_imputed[is.na(all_dos_imputed[, i]), i] = tmp_imputed
+                }
+            }
+            return(all_dos_imputed)
+        } else {
+            return(all_dos_imputed)
+        }
     }
 
     # Function to calculate case-control frequencies
