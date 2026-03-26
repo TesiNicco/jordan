@@ -1,0 +1,441 @@
+Phenotype Report
+========================================
+
+Total number of individuals: 3202
+Total number of individuals with PRS: 3202
+
+Age Statistics 
+Mean	Median	SD	Min	Max	IQR
+64.941	65.015	4.99	49.403	80.825	61.579-68.317 
+
+PRS Statistics - All Individuals 
+Mean	Median	SD	Min	Max	IQR
+8.327	8.214	0.497	7.092	10.316	7.976-8.624 
+
+Sex information on all samples:
+1: 1641, 2: 1561 
+
+Sex information on individuals with PRS:
+1: 1641, 2: 1561 
+
+Age Statistics by Sex: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - Sex:1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics by Sex: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - Sex:2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+========================================
+
+
+Phenotype Statistics: AD 
+Number of individuals with phenotype: AD: 3202
+Number of individuals with phenotype: AD and PRS: 3202
+Number of individuals with phenotype: AD by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: AD and PRS by SEX:
+1: 1641, 2: 1561 
+Number of controls (phenotype=1): 1601
+Number of cases (phenotype=2): 1601
+
+Number of controls (phenotype=1) by sex:
+1: 844, 2: 757 
+
+Number of cases (phenotype=2) by sex:
+1: 797, 2: 804 
+
+
+PRS Statistics - phenotype: AD ~ 1 
+Mean	Median	SD	Min	Max	IQR
+8.32	8.207	0.504	7.156	10.316	7.962-8.601 
+
+Age Statistics - phenotype: AD ~ 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.109	5.053	49.778	80.825	61.698-68.27 
+
+PRS Statistics - phenotype: AD ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics - phenotype: AD ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+Age Statistics - phenotype: AD ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - phenotype: AD ~ 2 
+Mean	Median	SD	Min	Max	IQR
+8.334	8.22	0.49	7.092	10.185	7.985-8.652 
+
+Age Statistics - phenotype: AD ~ 2 
+Mean	Median	SD	Min	Max	IQR
+64.926	64.935	4.928	49.403	80.664	61.431-68.402 
+
+PRS Statistics - phenotype: AD ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics - phenotype: AD ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+Age Statistics - phenotype: AD ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+
+Phenotype Statistics: MMSE 
+Number of individuals with phenotype: MMSE: 3202
+Number of individuals with phenotype: MMSE and PRS: 3202
+Number of individuals with phenotype: MMSE by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: MMSE and PRS by SEX:
+1: 1641, 2: 1561 
+
+MMSE Statistics - Phenotype: MMSE 
+Mean	Median	SD	Min	Max	IQR
+25.016	24.99	1.983	18.509	31.841	23.674-26.357 
+
+PRS Statistics - phenotype: MMSE 
+Mean	Median	SD	Min	Max	IQR
+8.327	8.214	0.497	7.092	10.316	7.976-8.624 
+
+Age Statistics - phenotype: MMSE 
+Mean	Median	SD	Min	Max	IQR
+64.941	65.015	4.99	49.403	80.825	61.579-68.317 
+
+MMSE Statistics - phenotype: MMSE ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+25.01	24.956	1.98	18.509	31.841	23.67-26.326 
+
+PRS Statistics - phenotype: MMSE ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics - phenotype: MMSE ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+MMSE Statistics - phenotype: MMSE ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+25.023	25.019	1.986	18.569	31.088	23.688-26.383 
+
+PRS Statistics - phenotype: MMSE ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+Age Statistics - phenotype: MMSE ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+
+Phenotype Statistics: AD_CAT 
+Number of individuals with phenotype: AD_CAT: 3202
+Number of individuals with phenotype: AD_CAT and PRS: 3202
+Number of individuals with phenotype: AD_CAT by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: AD_CAT and PRS by SEX:
+1: 1641, 2: 1561 
+Number of controls (phenotype=AD): 1601
+Number of cases (phenotype=Control): 1601
+
+Number of controls (phenotype=AD) by sex:
+1: 797, 2: 804 
+
+Number of cases (phenotype=Control) by sex:
+1: 844, 2: 757 
+
+
+PRS Statistics - phenotype: AD_CAT ~ AD 
+Mean	Median	SD	Min	Max	IQR
+8.334	8.22	0.49	7.092	10.185	7.985-8.652 
+
+Age Statistics - phenotype: AD_CAT ~ AD 
+Mean	Median	SD	Min	Max	IQR
+64.926	64.935	4.928	49.403	80.664	61.431-68.402 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - phenotype: AD_CAT ~ Control 
+Mean	Median	SD	Min	Max	IQR
+8.32	8.207	0.504	7.156	10.316	7.962-8.601 
+
+Age Statistics - phenotype: AD_CAT ~ Control 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.109	5.053	49.778	80.825	61.698-68.27 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+8.33	8.212	0.514	7.092	10.316	7.963-8.638 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 1 
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+8.325	8.215	0.479	7.156	10.169	7.991-8.615 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 2 
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+
+Total number of individuals: 3202
+Total number of individuals with PRS: 3202
+
+Age Statistics (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.941	65.015	4.99	49.403	80.825	61.579-68.317 
+
+PRS Statistics - All Individuals (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.645	7.648	0.234	6.8	8.41	7.478-7.806 
+
+Sex information on all samples:
+1: 1641, 2: 1561 
+
+Sex information on individuals with PRS:
+1: 1641, 2: 1561 
+
+Age Statistics by Sex: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - Sex:1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics by Sex: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - Sex:2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+========================================
+
+
+Phenotype Statistics: AD (APOE excluded)
+Number of individuals with phenotype: AD: 3202
+Number of individuals with phenotype: AD and PRS: 3202
+Number of individuals with phenotype: AD by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: AD and PRS by SEX:
+1: 1641, 2: 1561 
+Number of controls (phenotype=1): 1601
+Number of cases (phenotype=2): 1601
+
+Number of controls (phenotype=1) by sex:
+1: 844, 2: 757 
+
+Number of cases (phenotype=2) by sex:
+1: 797, 2: 804 
+
+
+PRS Statistics - phenotype: AD ~ 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.646	7.645	0.236	6.922	8.41	7.475-7.812 
+
+Age Statistics - phenotype: AD ~ 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.109	5.053	49.778	80.825	61.698-68.27 
+
+PRS Statistics - phenotype: AD ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics - phenotype: AD ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+Age Statistics - phenotype: AD ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - phenotype: AD ~ 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.644	7.649	0.233	6.8	8.368	7.479-7.8 
+
+Age Statistics - phenotype: AD ~ 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.926	64.935	4.928	49.403	80.664	61.431-68.402 
+
+PRS Statistics - phenotype: AD ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics - phenotype: AD ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+Age Statistics - phenotype: AD ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+
+Phenotype Statistics: MMSE (APOE excluded)
+Number of individuals with phenotype: MMSE: 3202
+Number of individuals with phenotype: MMSE and PRS: 3202
+Number of individuals with phenotype: MMSE by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: MMSE and PRS by SEX:
+1: 1641, 2: 1561 
+
+MMSE Statistics - Phenotype: MMSE (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+25.016	24.99	1.983	18.509	31.841	23.674-26.357 
+
+PRS Statistics - phenotype: MMSE (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.645	7.648	0.234	6.8	8.41	7.478-7.806 
+
+Age Statistics - phenotype: MMSE (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.941	65.015	4.99	49.403	80.825	61.579-68.317 
+
+MMSE Statistics - phenotype: MMSE ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+25.01	24.956	1.98	18.509	31.841	23.67-26.326 
+
+PRS Statistics - phenotype: MMSE ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics - phenotype: MMSE ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+MMSE Statistics - phenotype: MMSE ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+25.023	25.019	1.986	18.569	31.088	23.688-26.383 
+
+PRS Statistics - phenotype: MMSE ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+Age Statistics - phenotype: MMSE ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+
+Phenotype Statistics: AD_CAT (APOE excluded)
+Number of individuals with phenotype: AD_CAT: 3202
+Number of individuals with phenotype: AD_CAT and PRS: 3202
+Number of individuals with phenotype: AD_CAT by SEX:
+1: 1641, 2: 1561 
+Number of individuals with phenotype: AD_CAT and PRS by SEX:
+1: 1641, 2: 1561 
+Number of controls (phenotype=AD): 1601
+Number of cases (phenotype=Control): 1601
+
+Number of controls (phenotype=AD) by sex:
+1: 797, 2: 804 
+
+Number of cases (phenotype=Control) by sex:
+1: 844, 2: 757 
+
+
+PRS Statistics - phenotype: AD_CAT ~ AD (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.644	7.649	0.233	6.8	8.368	7.479-7.8 
+
+Age Statistics - phenotype: AD_CAT ~ AD (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.926	64.935	4.928	49.403	80.664	61.431-68.402 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+PRS Statistics - phenotype: AD_CAT ~ Control (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.646	7.645	0.236	6.922	8.41	7.475-7.812 
+
+Age Statistics - phenotype: AD_CAT ~ Control (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.109	5.053	49.778	80.825	61.698-68.27 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.643	7.646	0.24	6.8	8.41	7.474-7.809 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 1 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.956	65.075	5.005	49.403	80.825	61.686-68.252 
+
+PRS Statistics - phenotype: AD_CAT ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+7.647	7.65	0.228	6.922	8.326	7.48-7.803 
+
+Age Statistics - phenotype: AD_CAT ~ SEX: 2 (APOE excluded)
+Mean	Median	SD	Min	Max	IQR
+64.925	64.964	4.976	51.107	80.032	61.528-68.414 
+
+========================================
+
+

@@ -109,6 +109,7 @@ ui <- fluidPage(
       checkboxInput("exclude", "Calculate PRS with and without APOE (--exclude)", value = FALSE),
       checkboxInput("impute", "Impute missing genotypes based on allele frequencies (--impute-missing)", value = FALSE),
       checkboxInput("multiple", "Multiple PLINK files should be used as input (--multiple)", value = FALSE),
+      checkboxInput("stats", "Calculate summary statistics of the phenotypes (--pheno-stats)", value = FALSE),
       checkboxInput("plot", "Draw plots (--plot)", value = FALSE),
       # add conditional panel for plot
       conditionalPanel(
@@ -356,6 +357,7 @@ server <- function(input, output, session) {
       if (input$impute) "--impute-missing",
       if (input$exclude) "--exclude",
       if (input$multiple) "--multiple",
+      if (input$stats) "--pheno-stats",
       if (input$addWeight != "") paste0("--addWeight ", input$addWeight),
       if (input$plot) "--plot",
       if (input$exclude_na) "exclude_NA",
